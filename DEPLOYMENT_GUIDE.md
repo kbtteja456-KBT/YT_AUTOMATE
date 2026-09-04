@@ -22,29 +22,31 @@ This guide walks you through deploying your **AI YouTube Shorts Autopilot**:
 2. Click **New +** in the top right and select **Web Service**.
 3. Choose **Build and deploy from a Git repository** and connect your GitHub repo.
 4. Fill in the service details:
-   - **Name**: `youtube-shorts-autopilot-backend` (or any name you prefer)
-   - **Region**: Choose the closest region (e.g. *Oregon* or *Frankfurt*)
-   - **Branch**: `main` (or `master`)
-   - **Runtime**: Select **Docker** (Render will automatically detect `Dockerfile.backend`).
-   - **Instance Type**: **Free** ($0/month).
-5. Scroll down to **Environment Variables** and add the following keys from your `.env`:
+   - **Name**: `youtube-shorts-autopilot-backend` (or any name you choose)
+   - **Region**: Any region (e.g. *Oregon* or *Frankfurt*)
+   - **Branch**: `main`
+   - **Runtime**: Select **Docker**
+   - **Dockerfile Path**: `./Dockerfile` (or leave default)
+   - **Instance Type**: **Free** ($0/month)
+5. Scroll down to **Environment Variables** (or click **Add Environment Variable**) and copy-paste these exact values:
 
-| Key | Value / Instructions |
+| Key | Instructions (Copy from your local `.env`) |
 | :--- | :--- |
 | `ZERO_COST_MODE` | `true` |
 | `TIMEZONE` | `Asia/Kolkata` |
-| `MONGODB_URI` | `mongodb+srv://kbtteja456_db_user:%40bhanuteja@cluster0.oydktdy.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0` |
-| `ENCRYPTION_KEY` | *(Your 32-byte urlsafe base64 key from `.env`)* |
-| `GOOGLE_CLIENT_ID` | `952200459265-ddv16n86gm08tscu7hlutru1ug916k0s.apps.googleusercontent.com` |
-| `GOOGLE_CLIENT_SECRET` | *(Your client secret from `.env`)* |
+| `MONGODB_URI` | *Copy value from your `.env` (Line 6)* |
+| `ENCRYPTION_KEY` | *Copy value from your `.env` (Line 29)* |
+| `GOOGLE_CLIENT_ID` | *Copy value from your `.env` (Line 20)* |
+| `GOOGLE_CLIENT_SECRET` | *Copy value from your `.env` (Line 21)* |
 | `YOUTUBE_REDIRECT_URI` | `https://<YOUR-RENDER-APP-NAME>.onrender.com/api/auth/youtube/callback` |
-| `PIXABAY_API_KEY` | *(Your Pixabay key from `.env`)* |
-| `OPENROUTER_API_KEY` | *(Your OpenRouter key from `.env`)* |
-| `AUTOPILOT_CRON_SECRET` | `autopilot_secret_bhanu_2026` *(or any password you choose)* |
+| `PIXABAY_API_KEY` | *Copy value from your `.env` (Line 26)* |
+| `PEXELS_API_KEY` | *Copy value from your `.env` (Line 25)* |
+| `OPENROUTER_API_KEY` | *Copy value from your `.env` (Line 15)* |
+| `AUTOPILOT_CRON_SECRET` | `autopilot_secret_bhanu_2026` |
 
 6. Click **Deploy Web Service**.
-7. Once deployed, Render will provide your public URL:
-   `https://<your-render-app-name>.onrender.com`
+7. Once deployment starts, watch the Render logs. When finished, Render will show:
+   `==> Your service is live at https://<your-render-app-name>.onrender.com`
 8. **Update Google Cloud Console**:
    - Go to [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials).
    - Click on your OAuth 2.0 Client ID.
