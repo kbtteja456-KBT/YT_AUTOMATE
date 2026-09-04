@@ -10,6 +10,9 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
 
   const getThumbnailSrc = (video: VideoItem) => {
+    if (video.youtube_video_id) {
+      return `https://img.youtube.com/vi/${video.youtube_video_id}/hqdefault.jpg`;
+    }
     if (video.thumbnail_url) return resolveMediaUrl(video.thumbnail_url);
     if (video.thumbnail_path && (video.thumbnail_path.startsWith('http') || video.thumbnail_path.startsWith('/'))) {
       return resolveMediaUrl(video.thumbnail_path);
@@ -166,13 +169,28 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
               </button>
             </div>
 
-            <div style={{ background: '#000', borderRadius: '12px', overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
-              <video
-                controls
-                autoPlay
-                src={getVideoSrc(selectedVideo)}
-                style={{ maxHeight: '460px', width: 'auto', borderRadius: '12px' }}
-              />
+            <div style={{ background: '#000', borderRadius: '12px', overflow: 'hidden', display: 'flex', justifyContent: 'center', minHeight: '380px', position: 'relative' }}>
+              {selectedVideo.youtube_video_id ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${selectedVideo.youtube_video_id}?autoplay=1&rel=0`}
+                  title={selectedVideo.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  style={{
+                    width: '100%',
+                    height: '460px',
+                    border: 'none',
+                    borderRadius: '12px'
+                  }}
+                />
+              ) : (
+                <video
+                  controls
+                  autoPlay
+                  src={getVideoSrc(selectedVideo)}
+                  style={{ maxHeight: '460px', width: 'auto', borderRadius: '12px' }}
+                />
+              )}
             </div>
 
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>

@@ -4,6 +4,22 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://yt1-w757.onrender.com/api/$1"
+    },
+    {
+      "source": "/providers/(.*)",
+      "destination": "https://yt1-w757.onrender.com/providers/$1"
+    },
+    {
+      "source": "/health",
+      "destination": "https://yt1-w757.onrender.com/health"
+    },
+    {
+      "source": "/media/(.*)",
+      "destination": "https://yt1-w757.onrender.com/media/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -2,7 +2,15 @@
  * API service communicating with FastAPI backend.
  */
 
-export const BACKEND_URL = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/$/, '');
+const ENV_BACKEND_URL = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/$/, '');
+const isLocal = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname.endsWith('.local')
+);
+
+// Fallback to the live production Render backend when hosted on Vercel/cloud if VITE_API_URL is unset
+export const BACKEND_URL = ENV_BACKEND_URL || (isLocal ? '' : 'https://yt1-w757.onrender.com');
 const API_BASE = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
 export const resolveMediaUrl = (url: string | null | undefined): string => {
@@ -98,13 +106,15 @@ export interface ChannelInfo {
 
 export const api = {
   async getHealth(): Promise<HealthResponse> {
-    const res = await fetch('/health');
+    const url = BACKEND_URL ? `${BACKEND_URL}/health` : '/health';
+    const res = await fetch(url);
     if (!res.ok) throw new Error('Health check failed');
     return res.json();
   },
 
   async getProvidersHealth(): Promise<ProvidersHealthResponse> {
-    const res = await fetch('/providers/health');
+    const url = BACKEND_URL ? `${BACKEND_URL}/providers/health` : '/providers/health';
+    const res = await fetch(url);
     if (!res.ok) throw new Error('Provider health check failed');
     return res.json();
   },
