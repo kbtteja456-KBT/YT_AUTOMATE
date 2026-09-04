@@ -86,6 +86,8 @@ export interface VideoItem {
   quality_score: number;
   youtube_video_id?: string;
   youtube_url?: string;
+  views?: number;
+  likes?: number;
   created_at: string;
 }
 

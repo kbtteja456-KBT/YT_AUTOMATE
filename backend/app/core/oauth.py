@@ -148,6 +148,36 @@ class GoogleOAuthManager:
         }
 
     @staticmethod
+    async def fetch_video_statistics(access_token: str, video_ids: list[str]) -> dict[str, dict[str, int]]:
+        """Query real-time statistics for specific video IDs from YouTube Data API."""
+        if not video_ids:
+            return {}
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+        params = {
+            "part": "statistics",
+            "id": ",".join(video_ids[:50])
+        }
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("https://www.googleapis.com/youtube/v3/videos", headers=headers, params=params)
+            if resp.status_code != 200:
+                logger.warning(f"Failed to fetch video statistics: {resp.text}")
+                return {}
+            data = resp.json()
+
+        result = {}
+        for item in data.get("items", []):
+            vid = item.get("id")
+            stats = item.get("statistics", {})
+            result[vid] = {
+                "view_count": int(stats.get("viewCount", 0)),
+                "like_count": int(stats.get("likeCount", 0)),
+                "comment_count": int(stats.get("commentCount", 0)),
+            }
+        return result
+
+    @staticmethod
     def get_google_credentials(
         access_token: str,
         refresh_token: str,

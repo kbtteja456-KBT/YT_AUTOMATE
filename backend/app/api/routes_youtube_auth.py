@@ -110,11 +110,35 @@ async def _perform_youtube_sync(channel_id: str, db: Any) -> Optional[dict[str, 
     profile = await GoogleOAuthManager.fetch_channel_profile(tokens["access_token"])
     now = datetime.now(timezone.utc)
 
+    # Query real-time statistics from all published videos (bypasses YouTube 24-48h channel viewCount cache delay)
+    video_docs = await db.videos.find({"youtube_video_id": {"$exists": True, "$ne": None}}).to_list(length=100)
+    video_ids = [v["youtube_video_id"] for v in video_docs if v.get("youtube_video_id")]
+
+    total_video_views = 0
+    if video_ids:
+        try:
+            video_stats = await GoogleOAuthManager.fetch_video_statistics(tokens["access_token"], video_ids)
+            for v_doc in video_docs:
+                vid = v_doc.get("youtube_video_id")
+                if vid and vid in video_stats:
+                    s = video_stats[vid]
+                    v_views = s["view_count"]
+                    total_video_views += v_views
+                    await db.videos.update_one(
+                        {"_id": v_doc["_id"]},
+                        {"$set": {"views": v_views, "likes": s["like_count"], "comments": s["comment_count"]}}
+                    )
+        except Exception as vid_err:
+            logger.warning(f"Error fetching live video statistics during sync: {vid_err}")
+
+    channel_view_count = profile.get("view_count", 0) or 0
+    effective_view_count = max(channel_view_count, total_video_views)
+
     update_fields = {
         "title": profile["title"],
         "subscriber_count": profile.get("subscriber_count", 0),
-        "view_count": profile.get("view_count", 0),
-        "video_count": profile.get("video_count", 0),
+        "view_count": effective_view_count,
+        "video_count": max(profile.get("video_count", 0) or 0, len(video_docs)),
         "thumbnail_url": profile.get("thumbnail_url"),
         "custom_url": profile.get("custom_url"),
         "last_synced_at": now

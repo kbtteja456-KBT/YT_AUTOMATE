@@ -100,11 +100,14 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
               </div>
               <div className="video-info">
                 <div className="video-title">{video.title}</div>
-                <div className="video-meta">
+                <div className="video-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   {video.youtube_video_id ? (
                     <span style={{ color: 'var(--accent-mint)' }}>Published to YouTube</span>
                   ) : (
                     <span style={{ color: 'var(--accent-cyan)' }}>Rendered & QC Passed (Ready)</span>
+                  )}
+                  {video.views !== undefined && video.views > 0 && (
+                    <span style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 600 }}>👁️ {video.views.toLocaleString()} views</span>
                   )}
                 </div>
               </div>
@@ -205,6 +208,11 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
                 <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#a5b4fc', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
                   {selectedVideo.duration_seconds.toFixed(0)}s Short
                 </span>
+                {selectedVideo.views !== undefined && (
+                  <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#93c5fd', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
+                    👁️ {selectedVideo.views.toLocaleString()} views
+                  </span>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '8px' }}>
