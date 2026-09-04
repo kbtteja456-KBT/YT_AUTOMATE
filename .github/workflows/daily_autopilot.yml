@@ -1,0 +1,40 @@
+name: Daily YouTube Shorts Autopilot
+
+on:
+  schedule:
+    # 07:00 AM IST is 01:30 UTC
+    - cron: '30 1 * * *'
+    # 06:00 PM (18:00) IST is 12:30 UTC
+    - cron: '30 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-autopilot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Slot and Trigger Autopilot
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" -lt 6 ]; then
+            SLOT=1
+            echo "Triggering Morning Short (Slot 1 - 07:00 AM IST)..."
+          else
+            SLOT=2
+            echo "Triggering Evening Short (Slot 2 - 06:00 PM IST)..."
+          fi
+
+          BACKEND_URL="${{ secrets.RENDER_BACKEND_URL }}"
+          CRON_SECRET="${{ secrets.AUTOPILOT_CRON_SECRET }}"
+
+          if [ -z "$BACKEND_URL" ]; then
+            echo "ERROR: RENDER_BACKEND_URL secret is not set."
+            exit 1
+          fi
+
+          ENDPOINT="${BACKEND_URL}/api/autopilot/run-slot/${SLOT}"
+          echo "Sending POST request to: $ENDPOINT"
+
+          curl -s -X POST "$ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "x-autopilot-secret: ${CRON_SECRET}" \
+            -d '{}'

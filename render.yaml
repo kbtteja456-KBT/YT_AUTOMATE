@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: youtube-shorts-autopilot-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: ZERO_COST_MODE
+        value: "true"
+      - key: TIMEZONE
+        value: "Asia/Kolkata"
+      - key: MONGO_URI
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: YOUTUBE_REDIRECT_URI
+        sync: false
+      - key: PIXABAY_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: AUTOPILOT_CRON_SECRET
+        generateValue: true
