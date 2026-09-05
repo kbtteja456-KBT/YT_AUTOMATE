@@ -38,11 +38,14 @@ yarn-error.log*
 
 # Media cache & temp rendering artifacts
 media_storage/temp/
-media_storage/assets/
-media_storage/audio/
+media_storage/assets/*
+!media_storage/assets/tech_bg.mp4
+media_storage/audio/*
+!media_storage/audio/bg_music.mp3
 media_storage/captions/
 media_storage/rendered/
 media_storage/thumbnails/
+media_storage/*.log
 
 # System & IDE
 .DS_Store

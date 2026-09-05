@@ -211,8 +211,22 @@ Dialogue: 0,0:00:26.50,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
             logger.warning(f"Multi-clip sequence fallback: {ce}")
             visual_video = None
 
-    if not visual_video:
-        visual_video = available_assets[0] if available_assets else Path("media_storage/assets/clip2.mp4")
+    if not visual_video or not Path(visual_video).exists():
+        tech_fallback = Path("media_storage/assets/tech_bg.mp4")
+        if tech_fallback.exists():
+            visual_video = tech_fallback
+        elif available_assets:
+            visual_video = available_assets[0]
+        else:
+            # Safe procedural animated fallback using FFmpeg
+            gen_bg = temp_dir / "generated_bg.mp4"
+            subprocess.run([
+                ffmpeg_bin, "-y", "-f", "lavfi",
+                "-i", "mandelbrot=size=1080x1920:rate=30",
+                "-t", "35", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                str(gen_bg)
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            visual_video = gen_bg
 
     # 5. Composite Short with FFmpeg
     final_dir = Path("media_storage/rendered")

@@ -1,4 +1,4 @@
-name: Daily YouTube Shorts Autopilot
+name: 24/7 Cloud YouTube Shorts Autopilot
 
 on:
   schedule:
@@ -7,34 +7,74 @@ on:
     # 06:00 PM (18:00) IST is 12:30 UTC
     - cron: '30 12 * * *'
   workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Publishing Slot (1 = Morning 7 AM IST, 2 = Evening 6 PM IST)'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+      force:
+        description: 'Force publish even if already published today'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  trigger-autopilot:
+  autopilot-publish:
+    name: Generate & Publish YouTube Short
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - name: Determine Slot and Trigger Autopilot
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System FFmpeg
         run: |
-          HOUR=$(date -u +%H)
-          if [ "$HOUR" -lt 6 ]; then
-            SLOT=1
-            echo "Triggering Morning Short (Slot 1 - 07:00 AM IST)..."
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Determine Slot & Run Autopilot
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          TIMEZONE: "Asia/Kolkata"
+          ZERO_COST_MODE: "true"
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SLOT="${{ github.event.inputs.slot }}"
+            FORCE_FLAG=""
+            if [ "${{ github.event.inputs.force }}" = "true" ]; then
+              FORCE_FLAG="--force"
+            fi
+            echo "Manually triggered Slot $SLOT (Force: $FORCE_FLAG)"
+            python run_slot_cli.py --slot $SLOT $FORCE_FLAG
           else
-            SLOT=2
-            echo "Triggering Evening Short (Slot 2 - 06:00 PM IST)..."
+            UTC_HOUR=$(date -u +%-H)
+            if [ "$UTC_HOUR" -lt 6 ]; then
+              SLOT=1
+              echo "Scheduled trigger for Morning Slot 1 (07:00 AM IST)"
+            else
+              SLOT=2
+              echo "Scheduled trigger for Evening Slot 2 (06:00 PM IST)"
+            fi
+            python run_slot_cli.py --slot $SLOT
           fi
-
-          BACKEND_URL="${{ secrets.RENDER_BACKEND_URL }}"
-          CRON_SECRET="${{ secrets.AUTOPILOT_CRON_SECRET }}"
-
-          if [ -z "$BACKEND_URL" ]; then
-            echo "ERROR: RENDER_BACKEND_URL secret is not set."
-            exit 1
-          fi
-
-          ENDPOINT="${BACKEND_URL}/api/autopilot/run-slot/${SLOT}"
-          echo "Sending POST request to: $ENDPOINT"
-
-          curl -s -X POST "$ENDPOINT" \
-            -H "Content-Type: application/json" \
-            -H "x-autopilot-secret: ${CRON_SECRET}" \
-            -d '{}'
