@@ -5,6 +5,7 @@ import sys
 import time
 import json
 import random
+import zoneinfo
 import urllib.request
 import subprocess
 from pathlib import Path
@@ -16,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from backend.app.config import settings
 from backend.app.core.logging import logger
-from backend.app.core.db import AsyncMongoDB, SyncMongoDB
+from backend.app.core.db import SyncMongoDB
 from backend.app.core.security import decrypt_token, compute_file_hash
 from backend.app.core.oauth import GoogleOAuthManager
 from backend.app.core.ffmpeg_utils import get_ffmpeg_binary
@@ -37,7 +38,6 @@ TOPIC_POOL = [
             "3. ElevenLabs for hyper-realistic speech in seconds."
         ],
         "cta": "Subscribe for daily AI hacks!",
-        "pixabay_queries": ["artificial+intelligence+hologram", "technology+network", "futuristic+city"],
         "voice": "en-US-ChristopherNeural"
     },
     {
@@ -50,7 +50,6 @@ TOPIC_POOL = [
             "Third: Docker layer caching for instant builds."
         ],
         "cta": "Save this Short for your next coding sprint!",
-        "pixabay_queries": ["software+code+developer", "cyberpunk+city", "plexus+glowing+network"],
         "voice": "en-US-GuyNeural"
     },
     {
@@ -63,7 +62,6 @@ TOPIC_POOL = [
             "Tesla Optimus is preparing for commercial factory deployment."
         ],
         "cta": "Would you trust a robot in your home? Drop a comment!",
-        "pixabay_queries": ["robot+ai+technology", "cyberpunk+future", "digital+particles+technology"],
         "voice": "en-US-ChristopherNeural"
     },
     {
@@ -76,7 +74,6 @@ TOPIC_POOL = [
             "Enable passkeys to replace hackable SMS two-factor codes."
         ],
         "cta": "Share this with a friend to keep their accounts safe!",
-        "pixabay_queries": ["cyber+security+lock", "technology+network", "digital+abstract+blue"],
         "voice": "en-US-AriaNeural"
     },
     {
@@ -89,14 +86,18 @@ TOPIC_POOL = [
             "Once momentum takes over, you enter deep flow state."
         ],
         "cta": "Try it on your biggest task today and subscribe for more focus hacks!",
-        "pixabay_queries": ["time+clock+motion", "futuristic+abstract+neon", "sunset+mountain+aerial"],
         "voice": "en-US-ChristopherNeural"
     }
 ]
 
+
 async def run_autopilot_pipeline(slot_index: int = 1, custom_topic: Optional[str] = None) -> dict[str, Any]:
     """Autonomous pipeline: Topic -> Voiceover -> HD Stock Clips -> FFmpeg Composite -> YouTube Publishing."""
-    logger.info(f"🚀 [Autopilot Pipeline] Starting slot {slot_index} execution...")
+    tz = zoneinfo.ZoneInfo(settings.timezone)
+    now_local = datetime.now(tz)
+    today_str = now_local.strftime("%Y-%m-%d")
+
+    logger.info(f"🚀 [Autopilot Pipeline] Starting slot {slot_index} execution for {today_str}...")
 
     # 1. Select Topic
     if custom_topic:
@@ -106,12 +107,11 @@ async def run_autopilot_pipeline(slot_index: int = 1, custom_topic: Optional[str
             "hook": f"Here is what you need to know about {custom_topic}!",
             "points": ["Key insight number one.", "Game changing discovery number two.", "Future projection number three."],
             "cta": "Subscribe for daily updates!",
-            "pixabay_queries": ["technology+network", "futuristic+city"],
             "voice": "en-US-ChristopherNeural"
         }
     else:
         # Pick topic based on day and slot
-        day_of_year = datetime.now().timetuple().tm_yday
+        day_of_year = now_local.timetuple().tm_yday
         topic_idx = (day_of_year * 2 + slot_index) % len(TOPIC_POOL)
         topic_info = TOPIC_POOL[topic_idx]
 
@@ -154,41 +154,65 @@ Style: Highlight,Arial,68,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:05.00,Highlight,,0,0,0,,{{\\b1}}{topic_info['hook']}{{\\b0}}
-Dialogue: 0,0:00:05.00,0:00:12.00,Default,,0,0,0,,{topic_info['points'][0]}
-Dialogue: 0,0:00:12.00,0:00:19.00,Highlight,,0,0,0,,{topic_info['points'][1]}
-Dialogue: 0,0:00:19.00,0:00:26.00,Default,,0,0,0,,{topic_info['points'][2]}
-Dialogue: 0,0:00:26.00,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic_info['cta']}{{\\b0\\c&H00FFFFFF&}}
+Dialogue: 0,0:00:00.00,0:00:05.50,Highlight,,0,0,0,,{{\\b1}}{topic_info['hook']}{{\\b0}}
+Dialogue: 0,0:00:05.50,0:00:12.50,Default,,0,0,0,,{topic_info['points'][0]}
+Dialogue: 0,0:00:12.50,0:00:19.50,Highlight,,0,0,0,,{topic_info['points'][1]}
+Dialogue: 0,0:00:19.50,0:00:26.50,Default,,0,0,0,,{topic_info['points'][2]}
+Dialogue: 0,0:00:26.50,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic_info['cta']}{{\\b0\\c&H00FFFFFF&}}
 """
     with open(ass_path, "w", encoding="utf-8") as f:
         f.write(ass_content)
 
-    # 4. Fetch background clips
+    # 4. Prepare visual stock background
     ffmpeg_bin = get_ffmpeg_binary()
     assets_dir = Path("media_storage/assets")
     assets_dir.mkdir(parents=True, exist_ok=True)
     temp_dir = Path(f"media_storage/temp/autopilot_slot{slot_index}")
     temp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Use available stock assets
-    available_assets = list(assets_dir.glob("*.mp4"))
-    if not available_assets:
-        # Fallback query to Pixabay
-        api_key = settings.pixabay_api_key
-        if api_key:
-            try:
-                url = f"https://pixabay.com/api/videos/?key={api_key}&q=technology+neon&per_page=3"
-                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                with urllib.request.urlopen(req, timeout=10) as r:
-                    data = json.loads(r.read().decode())
-                    vurl = data["hits"][0]["videos"]["medium"]["url"]
-                    clip_dest = assets_dir / "stock_tech.mp4"
-                    urllib.request.urlretrieve(vurl, clip_dest)
-                    available_assets.append(clip_dest)
-            except Exception as pe:
-                logger.warning(f"Pixabay fallback note: {pe}")
+    available_assets = sorted([p for p in assets_dir.glob("*.mp4") if p.stat().st_size > 100000])
+    
+    # Check if we can build a dynamic multi-clip background
+    visual_video = None
+    if len(available_assets) >= 3:
+        try:
+            clips_plan = [
+                (available_assets[0], 6.0, temp_dir / "part0.mp4"),
+                (available_assets[1], 7.5, temp_dir / "part1.mp4"),
+                (available_assets[2], 7.5, temp_dir / "part2.mp4"),
+                (available_assets[min(3, len(available_assets)-1)], 11.0, temp_dir / "part3.mp4"),
+            ]
+            for src, dur, out in clips_plan:
+                subprocess.run([
+                    ffmpeg_bin, "-y",
+                    "-ss", "0", "-t", str(dur),
+                    "-i", str(src),
+                    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an",
+                    str(out)
+                ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    chosen_clip = available_assets[0] if available_assets else Path("media_storage/assets/clip2.mp4")
+            concat_txt = temp_dir / "concat.txt"
+            with open(concat_txt, "w", encoding="utf-8") as cf:
+                for _, _, out in clips_plan:
+                    cf.write(f"file '{out.resolve().as_posix()}'\n")
+
+            merged_multi = temp_dir / "merged_visual.mp4"
+            subprocess.run([
+                ffmpeg_bin, "-y",
+                "-f", "concat", "-safe", "0",
+                "-i", str(concat_txt),
+                "-c", "copy",
+                str(merged_multi)
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            visual_video = merged_multi
+            logger.info("[Autopilot] Successfully created dynamic multi-clip visual sequence.")
+        except Exception as ce:
+            logger.warning(f"Multi-clip sequence fallback: {ce}")
+            visual_video = None
+
+    if not visual_video:
+        visual_video = available_assets[0] if available_assets else Path("media_storage/assets/clip2.mp4")
 
     # 5. Composite Short with FFmpeg
     final_dir = Path("media_storage/rendered")
@@ -198,7 +222,6 @@ Dialogue: 0,0:00:26.00,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
 
     sub_rel = ass_path.as_posix()
     if bg_music.exists():
-        # Mix voiceover with music
         mixed_audio = temp_dir / "mixed.mp3"
         subprocess.run([
             ffmpeg_bin, "-y",
@@ -208,25 +231,25 @@ Dialogue: 0,0:00:26.00,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
             "-map", "[a]",
             "-c:a", "libmp3lame", "-b:a", "192k",
             str(mixed_audio)
-        ], check=True)
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         audio_src = mixed_audio
     else:
         audio_src = voiceover_path
 
-    # Final video composite
-    subprocess.run([
-        ffmpeg_bin, "-y",
-        "-stream_loop", "-1",
-        "-i", str(chosen_clip),
+    # Final video composite with animated subtitles
+    is_stream_loop = ["-stream_loop", "-1"] if visual_video != (temp_dir / "merged_visual.mp4") else []
+    ffmpeg_cmd = [ffmpeg_bin, "-y"] + is_stream_loop + [
+        "-i", str(visual_video),
         "-i", str(audio_src),
         "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,ass={sub_rel}",
         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k",
         "-shortest",
         str(rendered_file)
-    ], check=True)
+    ]
+    subprocess.run(ffmpeg_cmd, check=True)
 
-    # 6. Extract high-res thumbnail
+    # 6. Extract high-res thumbnail at 4.0s
     thumbs_dir = Path("media_storage/thumbnails")
     thumbs_dir.mkdir(parents=True, exist_ok=True)
     thumb_file = thumbs_dir / f"thumb_slot{slot_index}_{int(time.time())}.jpg"
@@ -237,14 +260,18 @@ Dialogue: 0,0:00:26.00,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
         "-vframes", "1",
         "-q:v", "2",
         str(thumb_file)
-    ], check=True)
+    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    logger.info(f"[Autopilot] Short rendered successfully ({rendered_file.stat().st_size} bytes)")
+    rendered_bytes = rendered_file.stat().st_size
+    logger.info(f"[Autopilot] Short rendered successfully ({rendered_bytes} bytes)")
 
     # 7. Upload to YouTube
     db = SyncMongoDB.get_db()
     channel = db.youtube_channels.find_one({"is_active": True})
     youtube_res = None
+    channel_id = channel.get("channel_id") if channel else None
+    channel_title = channel.get("title", "YouTube Channel") if channel else None
+
     if channel:
         token_doc = db.oauth_tokens.find_one({"channel_id": channel["channel_id"]})
         if token_doc:
@@ -263,8 +290,24 @@ Dialogue: 0,0:00:26.00,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
                     privacy_status="public"
                 )
                 logger.info(f"🎉 [Autopilot] Published to YouTube: {youtube_res.get('url')}")
+
+                # Auto-sync updated channel subscriber and video counts
+                try:
+                    profile = await GoogleOAuthManager.fetch_channel_profile(token_data["access_token"])
+                    db.youtube_channels.update_one(
+                        {"channel_id": channel["channel_id"]},
+                        {"$set": {
+                            "video_count": profile.get("video_count", 0),
+                            "subscriber_count": profile.get("subscriber_count", 0),
+                            "view_count": profile.get("view_count", 0),
+                            "last_synced_at": datetime.now(timezone.utc)
+                        }}
+                    )
+                except Exception as spe:
+                    logger.warning(f"Stats auto-sync warning: {spe}")
+
             except Exception as ye:
-                logger.error(f"[Autopilot] YouTube upload error: {ye}")
+                logger.error(f"[Autopilot] YouTube upload error: {ye}", exc_info=True)
 
     # 8. Record in MongoDB
     file_hash = compute_file_hash(str(rendered_file))
@@ -273,7 +316,7 @@ Dialogue: 0,0:00:26.00,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
         "description": speech_text,
         "niche": topic_info["niche"],
         "duration_seconds": 32.0,
-        "quality_score": 97.0,
+        "quality_score": 98.0,
         "file_path": str(rendered_file),
         "thumbnail_path": str(thumb_file),
         "file_hash": file_hash,
@@ -282,20 +325,63 @@ Dialogue: 0,0:00:26.00,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
         "youtube_url": youtube_res.get("url") if youtube_res else None,
         "privacy_status": "public",
         "created_at": datetime.now(timezone.utc),
-        "slot_index": slot_index
+        "published_at": datetime.now(timezone.utc) if youtube_res else None,
+        "slot_index": slot_index,
+        "slot_date": today_str,
+        "channel_id": channel_id,
+        "channel_title": channel_title
     }
     db.videos.insert_one(video_doc)
+
+    # 9. Record Activity Event for UI feed
+    try:
+        activity_doc = {
+            "event_type": "VIDEO_PUBLISHED" if youtube_res else "VIDEO_RENDERED",
+            "level": "INFO",
+            "agent_name": "AutopilotScheduler",
+            "message": f"Autonomous Short for Slot {slot_index} ({topic_info['title']}) published to YouTube: {youtube_res.get('url')}" if youtube_res else f"Short rendered locally ({topic_info['title']})",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        db.activity.insert_one(activity_doc)
+    except Exception as ae:
+        logger.warning(f"Could not record activity: {ae}")
 
     return {
         "status": "SUCCESS",
         "title": topic_info["title"],
         "slot": slot_index,
+        "slot_date": today_str,
         "youtube_url": youtube_res.get("url") if youtube_res else "Local Render Only",
-        "file_size_mb": round(rendered_file.stat().st_size / (1024 * 1024), 2)
+        "file_size_mb": round(rendered_bytes / (1024 * 1024), 2)
     }
+
 
 class TriggerSlotRequest(BaseModel):
     custom_topic: Optional[str] = Field(default=None, description="Optional custom topic for this Short")
+
+
+@router.get("/status")
+async def get_autopilot_status_endpoint() -> dict[str, Any]:
+    """Retrieve live status of the autonomous publishing engine."""
+    from backend.app.core.cron_scheduler import get_autopilot_status
+    return get_autopilot_status()
+
+
+@router.post("/start")
+async def start_autopilot_endpoint() -> dict[str, Any]:
+    """Resume autonomous publishing."""
+    from backend.app.core.cron_scheduler import set_autopilot_enabled
+    set_autopilot_enabled(True)
+    return {"is_enabled": True, "message": "Autonomous publishing scheduler active."}
+
+
+@router.post("/stop")
+async def stop_autopilot_endpoint() -> dict[str, Any]:
+    """Pause autonomous publishing."""
+    from backend.app.core.cron_scheduler import set_autopilot_enabled
+    set_autopilot_enabled(False)
+    return {"is_enabled": False, "message": "Autonomous publishing scheduler paused."}
+
 
 @router.post("/run-slot/{slot_index}")
 async def trigger_autopilot_slot(
@@ -303,18 +389,19 @@ async def trigger_autopilot_slot(
     request: Optional[TriggerSlotRequest] = None,
     x_autopilot_secret: Optional[str] = Header(default=None)
 ) -> dict[str, Any]:
-    """Trigger morning (slot 1 = 07:00 IST) or evening (slot 2 = 18:00 IST) publishing."""
+    """Trigger morning (slot 1 = 07:00 IST) or evening (slot 2 = 18:00 IST) publishing immediately."""
     if slot_index not in (1, 2):
         raise HTTPException(status_code=400, detail="Slot index must be 1 (Morning 7 AM) or 2 (Evening 6 PM).")
 
-    # Optional security secret check
     if settings.autopilot_cron_secret:
         if x_autopilot_secret != settings.autopilot_cron_secret:
             raise HTTPException(status_code=401, detail="Invalid x-autopilot-secret header.")
 
     custom_topic = request.custom_topic if request else None
-    result = await run_autopilot_pipeline(slot_index=slot_index, custom_topic=custom_topic)
+    from backend.app.core.cron_scheduler import run_slot_with_lock
+    result = await run_slot_with_lock(slot_index=slot_index, custom_topic=custom_topic)
     return result
+
 
 @router.get("/topics")
 async def list_autopilot_topics() -> list[dict[str, Any]]:

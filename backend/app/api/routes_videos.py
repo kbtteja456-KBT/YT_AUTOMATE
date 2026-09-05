@@ -53,19 +53,31 @@ def _serialize_doc(doc: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _dispatch_pipeline_job(job_id: str) -> None:
-    """Dispatch the pipeline task without blocking the API response."""
-    time.sleep(0.05)
-    try:
-        run_pipeline_task.delay(job_id)
-        return
-    except Exception as exc:
-        logger.warning(f"Celery broker unavailable for job {job_id}; executing pipeline synchronously as fallback. Error: {exc}")
+def _dispatch_pipeline_job(job_id: str, topic: Optional[str] = None, slot_index: int = 1) -> None:
+    """Dispatch the real autopilot pipeline asynchronously in a background thread."""
+    import asyncio
+    from backend.app.api.routes_autopilot import run_autopilot_pipeline
+    from backend.app.models.job import JobState
+
+    db = SyncMongoDB.get_db()
+    db.publishing_jobs.update_one(
+        {"_id": job_id},
+        {"$set": {"state": JobState.RENDERING.value, "updated_at": datetime.now(timezone.utc)}}
+    )
 
     try:
-        run_pipeline_task(job_id)
-    except Exception as fallback_exc:
-        logger.exception(f"Fallback pipeline execution failed for job {job_id}: {fallback_exc}")
+        res = asyncio.run(run_autopilot_pipeline(slot_index=slot_index, custom_topic=topic))
+        db.publishing_jobs.update_one(
+            {"_id": job_id},
+            {"$set": {"state": JobState.PUBLISHED.value, "details": res, "updated_at": datetime.now(timezone.utc)}}
+        )
+        logger.info(f"Manual video generation job {job_id} completed successfully!")
+    except Exception as exc:
+        logger.exception(f"Manual video generation failed for job {job_id}: {exc}")
+        db.publishing_jobs.update_one(
+            {"_id": job_id},
+            {"$set": {"state": JobState.FAILED.value, "error_message": str(exc), "updated_at": datetime.now(timezone.utc)}}
+        )
 
 
 @router.post("/generate")
@@ -102,7 +114,7 @@ async def trigger_video_generation(request: GenerateVideoRequest) -> dict[str, A
     job_doc["_id"] = job_id
     db.publishing_jobs.insert_one(job_doc)
 
-    threading.Thread(target=_dispatch_pipeline_job, args=(job_id,), daemon=True).start()
+    threading.Thread(target=_dispatch_pipeline_job, args=(job_id, request.topic, request.slot_index), daemon=True).start()
     queue_message = "Video generation job created and queued."
 
     return {
