@@ -33,17 +33,22 @@ def log_run(message: str):
 
 async def main():
     parser = argparse.ArgumentParser(description="Autonomous YouTube Shorts CLI Runner")
-    parser.add_argument("--slot", type=int, required=True, choices=[1, 2], help="Slot index: 1 (Morning 07:00 IST) or 2 (Evening 18:00 IST)")
+    parser.add_argument("--slot", type=int, default=0, choices=[0, 1, 2], help="Slot index: 1 (Morning 07:00 IST), 2 (Evening 18:00 IST), 0=Auto-detect by IST")
     parser.add_argument("--force", action="store_true", help="Force execution even if already published today")
     parser.add_argument("--topic", type=str, default=None, help="Optional custom topic override")
     args = parser.parse_args()
 
+    tz = zoneinfo.ZoneInfo(settings.timezone)
+    now_local = datetime.now(tz)
+    today_str = now_local.strftime("%Y-%m-%d")
+
     slot = args.slot
+    if slot == 0:
+        slot = 1 if now_local.hour < 13 else 2
+        log_run(f"🕒 Auto-detected slot based on current time ({now_local.strftime('%H:%M')} IST): Slot {slot}")
+
     slot_name = "Morning Slot 1 (07:00 AM)" if slot == 1 else "Evening Slot 2 (06:00 PM)"
     log_run(f"🔔 Task triggered for {slot_name}")
-
-    tz = zoneinfo.ZoneInfo(settings.timezone)
-    today_str = datetime.now(tz).strftime("%Y-%m-%d")
 
     # Check if already published today
     if not args.force and is_slot_published_today(slot, today_str):
@@ -53,7 +58,10 @@ async def main():
     log_run(f"🚀 Starting autonomous generation & YouTube publishing for {slot_name}...")
     try:
         result = await run_autopilot_pipeline(slot_index=slot, custom_topic=args.topic)
-        log_run(f"🎉 Successfully published to YouTube! URL: {result.get('youtube_url')}")
+        yt_url = result.get("youtube_url")
+        if not yt_url or yt_url == "Local Render Only":
+            raise RuntimeError(f"Video render completed, but YouTube upload failed to produce a live URL: {result}")
+        log_run(f"🎉 Successfully published to YouTube! URL: {yt_url}")
     except Exception as e:
         log_run(f"❌ Pipeline failed with error: {e}")
         logger.exception("CLI Pipeline Error")

@@ -286,43 +286,47 @@ Dialogue: 0,0:00:26.50,0:00:32.00,Highlight,,0,0,0,,{{\\c&H0000FF00&\\b1}}{topic
     channel_id = channel.get("channel_id") if channel else None
     channel_title = channel.get("title", "YouTube Channel") if channel else None
 
-    if channel:
-        token_doc = db.oauth_tokens.find_one({"channel_id": channel["channel_id"]})
-        if token_doc:
-            try:
-                refresh_token = decrypt_token(token_doc["encrypted_refresh_token"])
-                token_data = await GoogleOAuthManager.refresh_access_token(refresh_token)
-                creds = GoogleOAuthManager.get_google_credentials(token_data["access_token"], refresh_token)
-                yt_client = YouTubeClientProvider(credentials=creds)
+    if not channel:
+        raise RuntimeError("No active YouTube channel found in MongoDB database! Please connect your channel.")
 
-                tags = ["Shorts", "AI", "Tech", "Technology", "Future", "Productivity", "Innovation"]
-                youtube_res = await yt_client.upload_short(
-                    video_filepath=str(rendered_file),
-                    title=topic_info["title"],
-                    description=f"{speech_text}\n\n#Shorts #Tech #AI #Innovation",
-                    tags=tags,
-                    privacy_status="public"
-                )
-                logger.info(f"🎉 [Autopilot] Published to YouTube: {youtube_res.get('url')}")
+    token_doc = db.oauth_tokens.find_one({"channel_id": channel["channel_id"]})
+    if not token_doc:
+        raise RuntimeError(f"No OAuth token document found for channel {channel.get('channel_id')}!")
 
-                # Auto-sync updated channel subscriber and video counts
-                try:
-                    profile = await GoogleOAuthManager.fetch_channel_profile(token_data["access_token"])
-                    db.youtube_channels.update_one(
-                        {"channel_id": channel["channel_id"]},
-                        {"$set": {
-                            "video_count": profile.get("video_count", 0),
-                            "subscriber_count": profile.get("subscriber_count", 0),
-                            "view_count": profile.get("view_count", 0),
-                            "last_synced_at": datetime.now(timezone.utc)
-                        }}
-                    )
-                except Exception as spe:
-                    logger.warning(f"Stats auto-sync warning: {spe}")
+    try:
+        refresh_token = decrypt_token(token_doc["encrypted_refresh_token"])
+        token_data = await GoogleOAuthManager.refresh_access_token(refresh_token)
+        creds = GoogleOAuthManager.get_google_credentials(token_data["access_token"], refresh_token)
+        yt_client = YouTubeClientProvider(credentials=creds)
 
-            except Exception as ye:
-                logger.error(f"[Autopilot] YouTube upload error: {ye}", exc_info=True)
+        tags = ["Shorts", "AI", "Tech", "Technology", "Future", "Productivity", "Innovation"]
+        youtube_res = await yt_client.upload_short(
+            video_filepath=str(rendered_file),
+            title=topic_info["title"],
+            description=f"{speech_text}\n\n#Shorts #Tech #AI #Innovation",
+            tags=tags,
+            privacy_status="public"
+        )
+        logger.info(f"🎉 [Autopilot] Published to YouTube: {youtube_res.get('url')}")
 
+        # Auto-sync updated channel subscriber and video counts
+        try:
+            profile = await GoogleOAuthManager.fetch_channel_profile(token_data["access_token"])
+            db.youtube_channels.update_one(
+                {"channel_id": channel["channel_id"]},
+                {"$set": {
+                    "video_count": profile.get("video_count", 0),
+                    "subscriber_count": profile.get("subscriber_count", 0),
+                    "view_count": profile.get("view_count", 0),
+                    "last_synced_at": datetime.now(timezone.utc)
+                }}
+            )
+        except Exception as spe:
+            logger.warning(f"Stats auto-sync warning: {spe}")
+
+    except Exception as ye:
+        logger.error(f"[Autopilot] YouTube upload error: {ye}", exc_info=True)
+        raise RuntimeError(f"YouTube upload failed: {ye}") from ye
     # 8. Record in MongoDB
     file_hash = compute_file_hash(str(rendered_file))
     video_doc = {

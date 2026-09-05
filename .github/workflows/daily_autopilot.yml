@@ -38,10 +38,10 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install System FFmpeg
+      - name: Install System FFmpeg & Fonts
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg fonts-liberation fontconfig
 
       - name: Install Python Dependencies
         run: |
@@ -68,13 +68,6 @@ jobs:
             echo "Manually triggered Slot $SLOT (Force: $FORCE_FLAG)"
             python run_slot_cli.py --slot $SLOT $FORCE_FLAG
           else
-            UTC_HOUR=$(date -u +%-H)
-            if [ "$UTC_HOUR" -lt 6 ]; then
-              SLOT=1
-              echo "Scheduled trigger for Morning Slot 1 (07:00 AM IST)"
-            else
-              SLOT=2
-              echo "Scheduled trigger for Evening Slot 2 (06:00 PM IST)"
-            fi
-            python run_slot_cli.py --slot $SLOT
+            echo "Autonomous scheduled cloud trigger based on IST schedule..."
+            python run_slot_cli.py --slot 0
           fi
