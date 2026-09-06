@@ -46,7 +46,7 @@ class VoiceAgent(BaseAgent):
         pool_mp3s = list(pool_dir.glob("*.mp3"))
         if len(pool_mp3s) < 5:
             try:
-                from backend.app.providers.music.pixabay_music import FreeMusicArchiveProvider
+                from backend.app.providers.music.music_archive import FreeMusicArchiveProvider
                 from backend.app.config import settings as cfg
                 # FMA API key (optional — falls back to Incompetech automatically)
                 fma_key = getattr(cfg, "fma_api_key", "").strip() if hasattr(cfg, "fma_api_key") else ""
@@ -78,7 +78,7 @@ class VoiceAgent(BaseAgent):
             selected_filename = Path(selected_track).name
             try:
                 from backend.app.core.db import SyncMongoDB
-                from backend.app.providers.music.pixabay_music import build_attribution_credit
+                from backend.app.providers.music.music_archive import build_attribution_credit
                 db = SyncMongoDB.get_db()
                 record = db.media_assets.find_one({"filename": selected_filename})
                 if record:

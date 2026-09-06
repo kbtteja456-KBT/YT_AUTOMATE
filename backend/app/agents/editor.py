@@ -52,7 +52,7 @@ class EditorAgent(BaseAgent):
             vf_filter = (
                 f"scale=1080:1920:force_original_aspect_ratio=increase,"
                 f"crop=1080:1920,"
-                f"zoompan=z='min(zoom+0.001,1.08)':d={int(duration * 30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
+                f"zoompan=z='min(zoom+0.001,1.08)':d={max(int(duration * 30), 1)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
             )
 
             cmd_seg = [
@@ -116,7 +116,11 @@ class EditorAgent(BaseAgent):
 
         video_filters = []
         if captions_ass_path and captions_ass_path.strip() and Path(captions_ass_path).is_file():
-            clean_ass = str(Path(captions_ass_path).resolve()).replace("\\", "/").replace(":", "\\:")
+            ass_path_obj = Path(captions_ass_path).resolve()
+            if ass_path_obj.drive:  # Windows only
+                clean_ass = str(ass_path_obj).replace("\\", "/").replace(":", "\\:")
+            else:
+                clean_ass = str(ass_path_obj).replace("\\", "/")
             video_filters.append(f"ass='{clean_ass}'")
 
         if video_filters:

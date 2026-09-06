@@ -294,8 +294,8 @@ def publish_slot_task(slot_index: int = 1) -> dict[str, Any]:
     try:
         # Retrieve stored video record from MongoDB
         video_doc = db.videos.find_one({"job_id": job_id_str})
-        if not video_doc and job.get("id"):
-            video_doc = db.videos.find_one({"job_id": str(job["id"])})
+        if not video_doc:
+            video_doc = db.videos.find_one({"job_id": job_id_str})
 
         job_details = job.get("details") or {}
         video_filepath = (

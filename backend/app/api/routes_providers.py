@@ -197,7 +197,7 @@ async def check_all_providers_health() -> dict[str, Any]:
 @router.post("/music/setup")
 async def setup_music_pool_endpoint() -> dict[str, Any]:
     """Download and populate royalty-free music pool (Incompetech CC BY 4.0 + FMA CC0 if key available)."""
-    from backend.app.providers.music.pixabay_music import FreeMusicArchiveProvider
+    from backend.app.providers.music.music_archive import FreeMusicArchiveProvider
     provider = FreeMusicArchiveProvider()
     pool_dir = Path(settings.media_storage_dir) / "audio" / "music_pool"
     tracks = await provider.populate_pool(pool_dir, force_refresh=True)

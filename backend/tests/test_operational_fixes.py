@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from backend.app.config import settings
 from backend.app.core.security import get_encryption_key, encrypt_token, decrypt_token, MISSING_ENCRYPTION_KEY_ERROR
 from backend.app.models.provider import ProviderStatus, ProviderType
-from backend.app.providers.music.pixabay_music import (
+from backend.app.providers.music.music_archive import (
     FreeMusicArchiveProvider,
     build_attribution_credit,
     _INCOMPETECH_FALLBACK_TRACKS,
@@ -144,7 +144,7 @@ async def test_free_music_archive_provider_populates_incompetech_tracks(tmp_path
         resp.content = fake_mp3_bytes
         return resp
 
-    with patch("backend.app.providers.music.pixabay_music.SyncMongoDB.get_db", return_value=mock_db):
+    with patch("backend.app.providers.music.music_archive.SyncMongoDB.get_db", return_value=mock_db):
         with patch("httpx.AsyncClient.get", side_effect=fake_get):
             tracks = await provider.populate_pool(target_dir=test_pool, min_tracks=2)
 

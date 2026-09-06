@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 
     # Populate royalty-free music pool (Incompetech CC BY 4.0 / FMA CC0)
     try:
-        from backend.app.providers.music.pixabay_music import FreeMusicArchiveProvider
+        from backend.app.providers.music.music_archive import FreeMusicArchiveProvider
         music_provider = FreeMusicArchiveProvider()
         pool_dir = Path(settings.media_storage_dir) / "audio" / "music_pool"
         await music_provider.populate_pool(pool_dir)

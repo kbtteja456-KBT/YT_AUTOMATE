@@ -8,14 +8,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.app.config import settings
-from backend.app.providers.music.pixabay_music import PixabayMusicProvider
+from backend.app.providers.music.music_archive import FreeMusicArchiveProvider
 
 
 async def main():
     print("=" * 60)
     print("Setting up Royalty-Free Background Music Pool (Zero-Cost)")
     print("=" * 60)
-    provider = PixabayMusicProvider()
+    provider = FreeMusicArchiveProvider()
     pool_dir = Path(settings.media_storage_dir) / "audio" / "music_pool"
     
     health = await provider.check_health()

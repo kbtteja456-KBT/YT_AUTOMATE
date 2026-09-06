@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     # Stock Media APIs (Free Tiers)
     pexels_api_key: str = Field(default="")
     pixabay_api_key: str = Field(default="")
+    fma_api_key: str = Field(default="", validation_alias=AliasChoices("FMA_API_KEY", "fma_api_key"))
 
     # Security
     encryption_key: str = Field(default="")
