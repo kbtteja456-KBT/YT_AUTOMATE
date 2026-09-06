@@ -1,4 +1,4 @@
-"""StoryboardAgent breaking narration into multi-scene storyboard with pacing templates."""
+"""StoryboardAgent breaking narration into scenes with support for Python Quiz 2-card structure."""
 
 from typing import Any, Optional
 from backend.app.agents.base import BaseAgent
@@ -18,10 +18,50 @@ class StoryboardAgent(BaseAgent):
         style_profile: Optional[StyleProfile] = None,
         total_duration: float = 45.0
     ) -> Storyboard:
-        """Break narration script into scenes aligned with style pacing blueprint."""
+        """Break narration script into scenes aligned with style pacing blueprint or quiz format."""
         profile = style_profile or StyleProfile()
-        self.log(f"Creating storyboard for '{script.topic}' using style '{profile.name}'...")
+        is_quiz = (getattr(script, "content_format", "general") == "quiz_card")
 
+        self.log(f"Creating storyboard for '{script.topic}' (format: {'quiz_card' if is_quiz else 'general'})...")
+
+        if is_quiz:
+            # Exactly 2 scenes: Question Card (~17s) and Reveal Card (~7s)
+            dur_total = 24.0
+            t_split = 17.0
+
+            scene_q = Scene(
+                scene_id=1,
+                start=0.0,
+                end=t_split,
+                narration=f"{script.hook} {script.problem} {script.value}".strip(),
+                visual_type=VisualType.QUIZ_CARD_QUESTION,
+                visual_prompt=f"Hand-drawn Python quiz question card for '{script.topic}' with code and 4 options",
+                caption="What's the output?",
+                transition="cut"
+            )
+
+            scene_r = Scene(
+                scene_id=2,
+                start=t_split,
+                end=dur_total,
+                narration=f"{script.payoff} {script.cta}".strip(),
+                visual_type=VisualType.QUIZ_CARD_REVEAL,
+                visual_prompt=f"Hand-drawn Python quiz reveal card with highlighted option {script.correct_option} and explanation",
+                caption=f"Answer: {script.correct_option}!",
+                transition="cut"
+            )
+
+            storyboard = Storyboard(
+                scenes=[scene_q, scene_r],
+                total_duration=dur_total,
+                real_footage_ratio=0.0,
+                screen_record_ratio=1.0,
+                cut_frequency=t_split
+            )
+            self.log(f"Quiz Storyboard finalized: 2 scenes (Question: {t_split}s, Reveal: {dur_total - t_split}s).")
+            return storyboard
+
+        # Standard Multi-Scene Storyboard for general format
         engine = PatternInterruptEngine(profile)
         rhythm_slots = engine.plan_scene_rhythm(total_duration)
 
@@ -32,9 +72,9 @@ class StoryboardAgent(BaseAgent):
             f"{[(s['scene_id'], s['start'], s['end']) for s in rhythm_slots]}\n\n"
             f"For each scene, provide:\n"
             f"- 'scene_id': integer matching slot\n"
-            f"- 'narration': the spoken sentences for this segment\n"
+            f"- 'narration': spoken segment\n"
             f"- 'visual_type': one of ['motion_graphic', 'screen_recording', 'stock_footage', 'generated_image']\n"
-            f"- 'visual_prompt': detailed description of the on-screen visual\n"
+            f"- 'visual_prompt': detailed description\n"
             f"- 'caption': short punchy on-screen caption (max 4-5 words)\n"
             f"- 'transition': 'cut', 'fade', or 'zoom'"
         )
@@ -61,15 +101,13 @@ class StoryboardAgent(BaseAgent):
             "required": ["scenes"]
         }
 
-        response = await self.ai.generate_structured(
-            prompt=prompt,
-            response_schema=schema,
-            system_prompt="You are a professional video editor and storyboard director for YouTube Shorts."
-        )
+        try:
+            response = await self.ai.generate_structured(prompt=prompt, response_schema=schema)
+            raw_scenes = response.get("scenes", [])
+        except Exception:
+            raw_scenes = []
 
-        raw_scenes = response.get("scenes", [])
         scenes: list[Scene] = []
-
         for slot in rhythm_slots:
             sid = slot["scene_id"]
             matched_raw = next((r for r in raw_scenes if r.get("scene_id") == sid), None)
@@ -109,6 +147,5 @@ class StoryboardAgent(BaseAgent):
             screen_record_ratio=profile.screen_recording_ratio,
             cut_frequency=profile.cut_frequency_sec
         )
-
         self.log(f"Storyboard finalized with {len(scenes)} scenes over {total_duration}s.")
         return storyboard

@@ -14,6 +14,8 @@ class VisualType(str, Enum):
     GENERATED_IMAGE = "generated_image"
     MOTION_GRAPHIC = "motion_graphic"
     ANIMATED_IMAGE = "animated_image"
+    QUIZ_CARD_QUESTION = "quiz_card_question"
+    QUIZ_CARD_REVEAL = "quiz_card_reveal"
 
 
 class ResearchItem(MongoBaseModel):
@@ -31,6 +33,13 @@ class ResearchReport(MongoBaseModel):
     niche: str
     items: list[ResearchItem] = Field(default_factory=list)
     key_takeaway: str = ""
+    content_format: str = "general"
+    question_code: Optional[str] = None
+    options: list[str] = Field(default_factory=list)
+    correct_option: Optional[str] = None
+    explanation: Optional[str] = None
+    concept_tag: Optional[str] = None
+    verified_output: Optional[str] = None
 
 
 class Hook(MongoBaseModel):
@@ -57,6 +66,13 @@ class Script(MongoBaseModel):
     full_narration: str
     target_duration_sec: float = 45.0
     word_count: int = 0
+    content_format: str = "general"
+    question_code: Optional[str] = None
+    options: list[str] = Field(default_factory=list)
+    correct_option: Optional[str] = None
+    explanation: Optional[str] = None
+    concept_tag: Optional[str] = None
+    verified_output: Optional[str] = None
 
 
 class CaptionWord(MongoBaseModel):
@@ -114,6 +130,9 @@ class QCReport(MongoBaseModel):
     no_frozen_frames: bool = True
     no_clipping: bool = True
     no_watermarks: bool = True
+    bg_music_present: bool = True
+    bg_music_normalized: bool = True
+    quiz_cards_distinct: bool = True
     details: dict[str, Any] = Field(default_factory=dict)
     remediation_notes: list[str] = Field(default_factory=list)
 

@@ -14,7 +14,7 @@ class BaseAgent(ABC):
 
     name: str = "base_agent"
 
-    def __init__(self, ai_provider: AIProvider, search_provider: Optional[SearchProvider] = None):
+    def __init__(self, ai_provider: Optional[AIProvider] = None, search_provider: Optional[SearchProvider] = None):
         self.ai = ai_provider
         self.search = search_provider
 

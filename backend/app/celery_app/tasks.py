@@ -5,8 +5,6 @@ import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
-from unittest.mock import AsyncMock, MagicMock
-
 from celery import shared_task
 
 from backend.app.agents.caption import CaptionAgent
@@ -21,141 +19,58 @@ from backend.app.agents.storyboard import StoryboardAgent
 from backend.app.agents.thumbnail import ThumbnailAgent
 from backend.app.agents.title import DescriptionAgent, TitleAgent
 from backend.app.agents.voice import VoiceAgent
+from backend.app.agents.youtube import YouTubeAgent
 from backend.app.config import settings
 from backend.app.core.logging import logger
 from backend.app.core.db import SyncMongoDB
 from backend.app.core.repositories import JobRepository, VideoRepository
 from backend.app.core.security import compute_content_hash
 from backend.app.models.job import JobState, PublishingJob
-from backend.app.models.video import QCReport, ResearchReport, ResearchItem, Script, Scene, Storyboard, VisualType, Hook
-from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
 from backend.app.pipeline.orchestrator import PipelineOrchestrator
+from backend.app.providers.ai.openrouter import OpenRouterProvider
+from backend.app.providers.search.ddg_search import DuckDuckGoSearchProvider
 from backend.app.providers.storage.local_storage import LocalStorageProvider
+from backend.app.providers.tts.edge_tts_provider import EdgeTTSProvider
+from backend.app.providers.stt.whisper_provider import WhisperProvider
+from backend.app.providers.media.stock_media import StockMediaEngine
+from backend.app.providers.thumbnail.thumbnail_engine import ThumbnailEngine
+from backend.app.providers.youtube.youtube_client import YouTubeClientProvider
 
 
 def _build_orchestrator() -> PipelineOrchestrator:
-    """Build a concrete PipelineOrchestrator for job execution without depending on live external services."""
-    ai = MagicMock()
-    ai.generate_structured = AsyncMock(return_value={
-        "candidates": [{"topic": "5 AI Tools Every Creator Should Know", "angle": "Practical workflow", "why_viral": "Fast wins", "estimated_interest_score": 9.5}],
-        "items": [{"fact": "Most creators lose time switching tools.", "source": "Workflow study", "interpretation": "A tighter stack saves hours."}],
-        "key_takeaway": "Find a smaller, faster tool stack.",
-        "hook": "Stop wasting 3 hours a day switching tabs.",
-        "problem": "Most creators keep stacking tools instead of simplifying their workflow.",
-        "value": "A tighter tool stack makes editing and publishing faster.",
-        "payoff": "The result is less friction and more output.",
-        "cta": "Save this before your next project.",
-        "scenes": [{
-            "scene_id": 1,
-            "narration": "Stop wasting 3 hours a day switching tabs.",
-            "visual_type": "motion_graphic",
-            "visual_prompt": "Dynamic motion graphic showing tool stack collapse",
-            "caption": "Cut the noise",
-            "transition": "cut"
-        }],
-        "title": "5 AI Tools Every Creator Should Know",
-        "tags": ["AI", "tools", "workflow"],
-        "hashtags": ["#AI", "#creator"]
-    })
-    ai.generate_text = AsyncMock(return_value="structured output")
+    """Build a concrete PipelineOrchestrator using real provider and agent implementations."""
+    storage = LocalStorageProvider(base_dir=settings.media_storage_dir)
+    ai_provider = OpenRouterProvider(api_key=settings.openrouter_api_key, timeout_seconds=5.0, max_retries=1)
+    search_provider = DuckDuckGoSearchProvider()
+    tts_provider = EdgeTTSProvider()
+    stt_provider = WhisperProvider()
+    stock_provider = StockMediaEngine(media_dir=settings.media_storage_dir)
+    thumb_provider = ThumbnailEngine()
+    youtube_provider = YouTubeClientProvider()
 
-    search = MagicMock()
-    search.search_topic_facts = AsyncMock(return_value=[
-        ResearchItem(fact="Most creators lose time switching tools.", source="Workflow study", interpretation="A tighter stack saves hours.")
-    ])
+    idea = IdeaAgent(ai_provider=ai_provider)
+    research = ResearchAgent(ai_provider=ai_provider, search_provider=search_provider)
+    fact_check = FactCheckAgent(ai_provider=ai_provider)
+    hook = HookAgent(ai_provider=ai_provider)
+    script = ScriptAgent(ai_provider=ai_provider)
+    storyboard = StoryboardAgent(ai_provider=ai_provider)
+    media = MediaAgent(stock_provider=stock_provider, storage_provider=storage)
+    voice = VoiceAgent(tts_provider=tts_provider, storage_provider=storage)
+    caption = CaptionAgent(stt_provider=stt_provider, storage_provider=storage)
+    editor = EditorAgent(storage_provider=storage)
+    qc = QCAgent()
+    thumbnail = ThumbnailAgent(
+        ai_provider=ai_provider,
+        thumbnail_provider=thumb_provider,
+        storage_provider=storage
+    )
+    title = TitleAgent(ai_provider=ai_provider)
+    description = DescriptionAgent(ai_provider=ai_provider)
+    youtube = YouTubeAgent(youtube_provider=youtube_provider)
 
-    idea = MagicMock()
-    idea.generate_daily_topic = AsyncMock(return_value={"topic": "5 AI Tools Every Creator Should Know"})
-
-    research = MagicMock()
-    research.conduct_research = AsyncMock(return_value=ResearchReport(
-        topic="5 AI Tools Every Creator Should Know",
-        niche="AI & Productivity",
-        items=[ResearchItem(fact="Most creators lose time switching tools.", source="Workflow study", interpretation="A tighter stack saves hours.")],
-        key_takeaway="Find a smaller, faster tool stack."
-    ))
-
-    fact_check = MagicMock()
-    fact_check.verify_and_prune = AsyncMock(return_value=ResearchReport(
-        topic="5 AI Tools Every Creator Should Know",
-        niche="AI & Productivity",
-        items=[ResearchItem(fact="Most creators lose time switching tools.", source="Workflow study", interpretation="A tighter stack saves hours.")],
-        key_takeaway="Find a smaller, faster tool stack."
-    ))
-
-    hook = MagicMock()
-    hook.generate_and_score_hooks = AsyncMock(return_value=[Hook(text="Stop wasting 3 hours a day switching tabs.", selected=True, total_score=9.5)])
-
-    script = MagicMock()
-    script.generate_script = AsyncMock(return_value=Script(
-        topic="5 AI Tools Every Creator Should Know",
-        hook="Stop wasting 3 hours a day switching tabs.",
-        problem="Most creators keep stacking tools instead of simplifying their workflow.",
-        value="A tighter tool stack makes editing and publishing faster.",
-        payoff="The result is less friction and more output.",
-        cta="Save this before your next project.",
-        full_narration="Stop wasting 3 hours a day switching tabs. Most creators keep stacking tools instead of simplifying their workflow. A tighter tool stack makes editing and publishing faster. The result is less friction and more output. Save this before your next project.",
-        target_duration_sec=45.0,
-        word_count=42
-    ))
-
-    storyboard = MagicMock()
-    storyboard.create_storyboard = AsyncMock(return_value=Storyboard(
-        scenes=[Scene(
-            scene_id=1,
-            start=0.0,
-            end=45.0,
-            narration="Stop wasting 3 hours a day switching tabs.",
-            visual_type=VisualType.MOTION_GRAPHIC,
-            visual_prompt="Dynamic motion graphic showing workflow simplification",
-            caption="Cut the noise",
-            transition="cut"
-        )],
-        total_duration=45.0
-    ))
-
-    media = MagicMock()
-    media.collect_scene_assets = AsyncMock(return_value=Storyboard(
-        scenes=[Scene(
-            scene_id=1,
-            start=0.0,
-            end=45.0,
-            narration="Stop wasting 3 hours a day switching tabs.",
-            visual_type=VisualType.MOTION_GRAPHIC,
-            visual_prompt="Dynamic motion graphic showing workflow simplification",
-            caption="Cut the noise",
-            transition="cut"
-        )],
-        total_duration=45.0
-    ))
-
-    voice = MagicMock()
-    voice.generate_voiceover = AsyncMock(return_value=str(LocalStorageProvider(settings.media_storage_dir).get_path("audio", "voice_test.mp3")))
-
-    caption = MagicMock()
-    caption.generate_captions = AsyncMock(return_value=(str(LocalStorageProvider(settings.media_storage_dir).get_path("captions", "captions_test.ass")), []))
-
-    editor = MagicMock()
-    test_video = LocalStorageProvider(settings.media_storage_dir).get_path("rendered", "short_rendered.mp4")
-    with open(test_video, "wb") as fh:
-        fh.write(b"mock_video_bytes")
-    editor.render_video = AsyncMock(return_value=test_video)
-
-    qc = MagicMock()
-    qc.audit_video = AsyncMock(return_value=QCReport(score=96.0, passed=True, resolution_valid=True, duration_valid=True, audio_present=True, captions_synced=True, details={"metadata": {"duration": 45.0}}, remediation_notes=[]))
-
-    thumbnail = MagicMock()
-    thumbnail.generate_custom_thumbnail = AsyncMock(return_value=ThumbnailCard(
-        file_path=str(LocalStorageProvider(settings.media_storage_dir).get_path("thumbnails", "thumb_test.jpg")),
-        file_hash="thumb_hash",
-        spec=ThumbnailSpec(source_frame_timestamp=2.0, overlay_text="AI TOOLS")
-    ))
-
-    title = MagicMock()
-    title.generate_title_and_tags = AsyncMock(return_value={"title": "5 AI Tools Every Creator Should Know", "tags": ["AI"], "hashtags": ["#AI"]})
-
-    description = MagicMock()
-    description.generate_description = AsyncMock(return_value="A tighter tool stack means less friction and more output.")
+    db = SyncMongoDB.get_db()
+    job_repo = JobRepository(db)
+    video_repo = VideoRepository(db)
 
     return PipelineOrchestrator(
         idea_agent=idea,
@@ -172,6 +87,9 @@ def _build_orchestrator() -> PipelineOrchestrator:
         thumbnail_agent=thumbnail,
         title_agent=title,
         description_agent=description,
+        youtube_agent=youtube,
+        db_job_repo=job_repo,
+        db_video_repo=video_repo
     )
 
 
@@ -180,10 +98,12 @@ async def _execute_pipeline_job(job_id: str) -> dict[str, Any]:
     db = SyncMongoDB.get_db()
     repo = JobRepository(db)
     video_repo = VideoRepository(db)
+    job_data = db.publishing_jobs.find_one({"_id": job_id})
+    topic = job_data.get("topic") if job_data else None
     orchestrator = _build_orchestrator()
     orchestrator.job_repo = repo
     orchestrator.video_repo = video_repo
-    return await orchestrator.execute_job(job_id=job_id)
+    return await orchestrator.execute_job(job_id=job_id, custom_topic=topic)
 
 
 def _run_async_pipeline(job_id: str) -> dict[str, Any]:

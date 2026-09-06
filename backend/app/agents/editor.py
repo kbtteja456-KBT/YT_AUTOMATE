@@ -115,7 +115,7 @@ class EditorAgent(BaseAgent):
         ]
 
         video_filters = []
-        if captions_ass_path and Path(captions_ass_path).exists():
+        if captions_ass_path and captions_ass_path.strip() and Path(captions_ass_path).is_file():
             clean_ass = str(Path(captions_ass_path).resolve()).replace("\\", "/").replace(":", "\\:")
             video_filters.append(f"ass='{clean_ass}'")
 

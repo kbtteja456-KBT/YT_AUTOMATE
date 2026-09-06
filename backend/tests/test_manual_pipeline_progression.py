@@ -11,9 +11,11 @@ from backend.app.celery_app.tasks import run_pipeline_task
 def test_manual_generate_creates_job_and_task_advances_it_to_ready():
     mock_db = mongomock.MongoClient()["youtube_autopilot"]
 
-    with patch("backend.app.api.routes_videos.SyncMongoDB.get_db", return_value=mock_db), \
+    with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db), \
+         patch("backend.app.api.routes_videos.SyncMongoDB.get_db", return_value=mock_db), \
          patch("backend.app.celery_app.tasks.SyncMongoDB.get_db", return_value=mock_db), \
-         patch("backend.app.celery_app.tasks.run_pipeline_task.delay", side_effect=lambda job_id: run_pipeline_task(job_id)):
+         patch("backend.app.celery_app.tasks.run_pipeline_task.delay", side_effect=lambda job_id: run_pipeline_task(job_id)), \
+         patch("backend.app.api.routes_videos._dispatch_pipeline_job"):
         client = TestClient(app)
         response = client.post("/api/videos/generate", json={"topic": "AI tools", "target_duration_sec": 45.0, "slot_index": 1})
 

@@ -112,8 +112,12 @@ def test_youtube_connect_endpoint():
 
 def test_youtube_channel_endpoint_unconnected():
     """Verify GET /api/auth/youtube/channel reports not connected cleanly."""
-    res = client.get("/api/auth/youtube/channel")
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_connected"] is False
-    assert data["channel"] is None
+    with patch("backend.app.api.routes_youtube_auth.AsyncMongoDB.get_db") as mock_get_db:
+        mock_db = AsyncMock()
+        mock_db.youtube_channels.find_one = AsyncMock(return_value=None)
+        mock_get_db.return_value = mock_db
+        res = client.get("/api/auth/youtube/channel")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["is_connected"] is False
+        assert data["channel"] is None

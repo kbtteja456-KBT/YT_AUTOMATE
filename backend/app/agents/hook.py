@@ -58,16 +58,22 @@ class HookAgent(BaseAgent):
             "required": ["hooks"]
         }
 
-        response = await self.ai.generate_structured(
-            prompt=prompt,
-            response_schema=schema,
-            system_prompt="You are a YouTube Shorts hook specialist obsessed with the first 3 seconds retention."
-        )
+        raw_hooks = []
+        if self.ai:
+            try:
+                response = await self.ai.generate_structured(
+                    prompt=prompt,
+                    response_schema=schema,
+                    system_prompt="You are a YouTube Shorts hook specialist obsessed with the first 3 seconds retention."
+                )
+                if response:
+                    raw_hooks = response.get("hooks", [])
+            except Exception as e:
+                self.log(f"AI hook generation fallback: {e}")
 
         hook_objs: list[Hook] = []
-        raw_hooks = response.get("hooks", [])
 
-        # Default fallback hooks if LLM returned fewer than 5
+        # Default fallback hooks if LLM returned fewer than 5 or failed
         if len(raw_hooks) < 5:
             raw_hooks = [
                 {"text": f"Stop using ChatGPT until you see this {topic} breakthrough.", "curiosity": 9.2, "clarity": 9.0, "specificity": 8.5, "emotional_impact": 8.0, "retention_potential": 9.1, "speed": 9.4},
