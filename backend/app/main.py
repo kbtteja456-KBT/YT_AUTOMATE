@@ -33,10 +33,10 @@ async def lifespan(app: FastAPI):
     # Connect to MongoDB
     await AsyncMongoDB.connect()
 
-    # Populate royalty-free music pool if configured
+    # Populate royalty-free music pool (Incompetech CC BY 4.0 / FMA CC0)
     try:
-        from backend.app.providers.music.pixabay_music import PixabayMusicProvider
-        music_provider = PixabayMusicProvider()
+        from backend.app.providers.music.pixabay_music import FreeMusicArchiveProvider
+        music_provider = FreeMusicArchiveProvider()
         pool_dir = Path(settings.media_storage_dir) / "audio" / "music_pool"
         await music_provider.populate_pool(pool_dir)
     except Exception as e:

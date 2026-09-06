@@ -57,9 +57,57 @@ def get_slot_status_today(slot_index: int, today_str: Optional[str] = None) -> s
 
 
 async def execute_slot_pipeline(slot_index: int, custom_topic: Optional[str] = None) -> dict:
-    """Execute full end-to-end Short generation and YouTube publishing for a slot."""
-    from backend.app.api.routes_autopilot import run_autopilot_pipeline
-    return await run_autopilot_pipeline(slot_index=slot_index, custom_topic=custom_topic)
+    """Execute full end-to-end Short generation and YouTube publishing for a slot.
+
+    Uses the REAL PipelineOrchestrator — same path as Celery tasks and run_slot_cli.py.
+    No dependency on run_autopilot_pipeline() (deleted) or Celery/Redis.
+    """
+    from datetime import timezone
+    from backend.app.core.db import SyncMongoDB
+    from backend.app.core.security import compute_content_hash
+    from backend.app.core.repositories import JobRepository, VideoRepository
+    from backend.app.models.job import JobState
+    from backend.app.celery_app.tasks import _build_orchestrator
+
+    db = SyncMongoDB.get_db()
+    now = datetime.now(timezone.utc)
+    tz = zoneinfo.ZoneInfo(settings.timezone)
+    date_str = datetime.now(tz).strftime("%Y-%m-%d")
+    idempotency_key = compute_content_hash(f"autopilot_{date_str}_slot{slot_index}")
+
+    existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})
+    if existing and existing.get("state") == JobState.PUBLISHED.value:
+        return {
+            "status": "ALREADY_PUBLISHED",
+            "youtube_url": existing.get("youtube_url", ""),
+            "youtube_video_id": existing.get("youtube_video_id"),
+        }
+
+    if existing:
+        job_id = str(existing["_id"])
+        db.publishing_jobs.update_one(
+            {"_id": existing["_id"]},
+            {"$set": {"state": JobState.CREATED.value, "error_message": None, "updated_at": now}}
+        )
+    else:
+        doc = {
+            "slot_index": slot_index,
+            "scheduled_at": now,
+            "state": JobState.CREATED.value,
+            "idempotency_key": idempotency_key,
+            "topic": custom_topic or "Python Quiz #Shorts",
+            "created_at": now,
+            "updated_at": now,
+            "is_buffered": False,
+            "triggered_by": "fastapi_scheduler",
+        }
+        res = db.publishing_jobs.insert_one(doc)
+        job_id = str(res.inserted_id)
+
+    orchestrator = _build_orchestrator(db)
+    orchestrator.job_repo = JobRepository(db)
+    orchestrator.video_repo = VideoRepository(db)
+    return await orchestrator.execute_job(job_id=job_id, custom_topic=custom_topic)
 
 
 async def run_slot_with_lock(slot_index: int, custom_topic: Optional[str] = None) -> dict:

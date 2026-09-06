@@ -1,6 +1,6 @@
 """TitleAgent and DescriptionAgent generating high-CTR metadata for Python quizzes and standard Shorts."""
 
-from typing import Any
+from typing import Any, Optional
 from backend.app.agents.base import BaseAgent
 from backend.app.models.video import Script
 
@@ -96,15 +96,38 @@ class TitleAgent(BaseAgent):
 
 
 class DescriptionAgent(BaseAgent):
-    """Generates clean, SEO-optimized YouTube descriptions."""
+    """Generates clean, SEO-optimized YouTube descriptions.
+
+    When a CC BY (attribution-required) music track is used, the credit line
+    MUST appear in the real YouTube description — not just in internal metadata.
+    Pass the credit text via music_attribution; only CC0 tracks may pass None.
+    """
 
     name = "DescriptionAgent"
 
-    async def generate_description(self, script: Script, title: str, hashtags: list[str]) -> str:
-        """Construct full YouTube Shorts description with answers, explanation, and tags."""
+    async def generate_description(
+        self,
+        script: Script,
+        title: str,
+        hashtags: list[str],
+        music_attribution: Optional[str] = None,
+    ) -> str:
+        """Construct full YouTube Shorts description with answers, explanation, and tags.
+
+        Args:
+            music_attribution: The CC BY credit line from VoiceAgent.last_music_attribution,
+                               or None for CC0/public-domain/TTS-narrated videos.
+                               When non-None, this credit block is appended to the description
+                               BEFORE the hashtags so it appears in the actual published video.
+        """
         self.log(f"Generating description for '{title}'...")
         is_quiz = (getattr(script, "content_format", "general") == "quiz_card")
         tag_str = " ".join(hashtags) if hashtags else "#Shorts #Python #Coding"
+
+        # Build the music credit block (only for CC BY tracks)
+        music_credit_block = ""
+        if music_attribution:
+            music_credit_block = f"\n-----------------------------------------\n🎵 MUSIC CREDIT\n{music_attribution}\n-----------------------------------------\n"
 
         if is_quiz:
             opt_text = "\n".join(script.options) if script.options else ""
@@ -118,7 +141,8 @@ class DescriptionAgent(BaseAgent):
                 f"💡 EXPLANATION: {script.explanation}\n"
                 f"-----------------------------------------\n\n"
                 f"💬 Did you get it right? Comment your answer below!\n"
-                f"🔔 Subscribe for daily Python quizzes and coding challenges!\n\n"
+                f"🔔 Subscribe for daily Python quizzes and coding challenges!\n"
+                f"{music_credit_block}\n"
                 f"{tag_str}"
             )
             return description
@@ -127,7 +151,9 @@ class DescriptionAgent(BaseAgent):
         description = (
             f"{title}\n\n"
             f"{script.value}\n\n"
-            f"🔔 Follow for daily autonomous tech and AI discoveries.\n\n"
+            f"🔔 Follow for daily autonomous tech and AI discoveries.\n"
+            f"{music_credit_block}\n"
             f"{tag_str}"
         )
         return description
+

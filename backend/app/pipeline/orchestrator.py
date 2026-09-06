@@ -143,6 +143,8 @@ class PipelineOrchestrator:
         # 6. VOICE GENERATION
         await self._transition_state(job_id, JobState.GENERATING_VOICE)
         audio_path = await self.voice.generate_voiceover(script_obj, job_id=job_id)
+        # Capture music attribution credit (CC BY tracks → non-None; CC0/TTS → None)
+        music_attribution = getattr(self.voice, "last_music_attribution", None)
 
         # 7. CAPTION GENERATION
         await self._transition_state(job_id, JobState.GENERATING_CAPTIONS)
@@ -192,11 +194,14 @@ class PipelineOrchestrator:
         video_tags = title_data["tags"]
         video_hashtags = title_data["hashtags"]
 
+        # Pass music_attribution so CC BY credit appears in the real YouTube description
         description_text = await self.description.generate_description(
             script=script_obj,
             title=video_title,
-            hashtags=video_hashtags
+            hashtags=video_hashtags,
+            music_attribution=music_attribution,
         )
+
 
         # 12. READY (Buffered for scheduled publish time)
         await self._transition_state(job_id, JobState.READY)

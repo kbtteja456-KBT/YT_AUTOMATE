@@ -54,9 +54,10 @@ def _serialize_doc(doc: dict[str, Any]) -> dict[str, Any]:
 
 
 def _dispatch_pipeline_job(job_id: str, topic: Optional[str] = None, slot_index: int = 1) -> None:
-    """Dispatch the real autopilot pipeline asynchronously in a background thread."""
+    """Dispatch the real PipelineOrchestrator in a background thread."""
     import asyncio
-    from backend.app.api.routes_autopilot import run_autopilot_pipeline
+    from backend.app.celery_app.tasks import _build_orchestrator
+    from backend.app.core.repositories import JobRepository, VideoRepository
     from backend.app.models.job import JobState
 
     db = SyncMongoDB.get_db()
@@ -66,18 +67,25 @@ def _dispatch_pipeline_job(job_id: str, topic: Optional[str] = None, slot_index:
     )
 
     try:
-        res = asyncio.run(run_autopilot_pipeline(slot_index=slot_index, custom_topic=topic))
+        async def _run():
+            orchestrator = _build_orchestrator(db)
+            orchestrator.job_repo = JobRepository(db)
+            orchestrator.video_repo = VideoRepository(db)
+            return await orchestrator.execute_job(job_id=job_id, custom_topic=topic)
+
+        res = asyncio.run(_run())
         db.publishing_jobs.update_one(
             {"_id": job_id},
-            {"$set": {"state": JobState.PUBLISHED.value, "details": res, "updated_at": datetime.now(timezone.utc)}}
+            {"$set": {"state": JobState.READY.value, "details": res, "updated_at": datetime.now(timezone.utc)}}
         )
-        logger.info(f"Manual video generation job {job_id} completed successfully!")
+        logger.info(f"Manual video generation job {job_id} completed — state READY.")
     except Exception as exc:
         logger.exception(f"Manual video generation failed for job {job_id}: {exc}")
         db.publishing_jobs.update_one(
             {"_id": job_id},
             {"$set": {"state": JobState.FAILED.value, "error_message": str(exc), "updated_at": datetime.now(timezone.utc)}}
         )
+
 
 
 @router.post("/generate")

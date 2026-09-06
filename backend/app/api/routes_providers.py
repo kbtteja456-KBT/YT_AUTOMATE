@@ -62,11 +62,12 @@ async def list_providers() -> list[dict[str, Any]]:
             "enabled": bool(settings.google_client_id)
         },
         {
-            "name": "Pixabay Royalty-Free Music Pool",
+            "name": "Free Music Archive / Incompetech CC0 & CC-BY Music Pool",
             "type": "MUSIC",
             "is_zero_cost": True,
             "is_paid": False,
-            "enabled": bool(settings.pixabay_api_key)
+            "enabled": True,
+            "note": "Incompetech (CC BY 4.0) always available. FMA (CC0) requires FMA_API_KEY."
         }
     ]
 
@@ -170,12 +171,20 @@ async def check_all_providers_health() -> dict[str, Any]:
         "message": f"Stock APIs active (Pexels: {'OK' if has_pexels else 'MISSING'}, Pixabay: {'OK' if has_pixabay else 'MISSING'})"
     }
 
-    # 8. Check Pixabay Royalty-Free Music Provider
+    # 8. Check Free Music Archive / Incompetech Music Provider
+    fma_key_present = bool(getattr(settings, 'fma_api_key', '').strip()) if hasattr(settings, 'fma_api_key') else False
     results["music"] = {
-        "provider": "Pixabay Music Provider",
-        "status": "CONNECTED" if has_pixabay else "NOT_CONFIGURED",
+        "provider": "FreeMusicArchiveProvider (Incompetech CC BY 4.0 + FMA CC0)",
+        "status": "CONNECTED",
         "is_zero_cost": True,
-        "message": "PIXABAY_API_KEY configured; royalty-free music pool active" if has_pixabay else "Real music tracks are unavailable because PIXABAY_API_KEY is not configured. Please add PIXABAY_API_KEY to your .env file."
+        "fma_cc0_available": fma_key_present,
+        "incompetech_cc_by_available": True,
+        "message": (
+            "FMA (CC0, no attribution) + Incompetech (CC BY 4.0, attribution appended to descriptions)."
+            if fma_key_present else
+            "Incompetech (CC BY 4.0) active — attribution credit automatically appended to YouTube descriptions. "
+            "Set FMA_API_KEY for CC0 tracks that need no attribution."
+        )
     }
 
     return {
@@ -187,13 +196,18 @@ async def check_all_providers_health() -> dict[str, Any]:
 
 @router.post("/music/setup")
 async def setup_music_pool_endpoint() -> dict[str, Any]:
-    """Download and populate royalty-free music pool tracks matching quiz tone."""
-    from backend.app.providers.music.pixabay_music import PixabayMusicProvider
-    provider = PixabayMusicProvider()
+    """Download and populate royalty-free music pool (Incompetech CC BY 4.0 + FMA CC0 if key available)."""
+    from backend.app.providers.music.pixabay_music import FreeMusicArchiveProvider
+    provider = FreeMusicArchiveProvider()
     pool_dir = Path(settings.media_storage_dir) / "audio" / "music_pool"
-    tracks = await provider.populate_pool(pool_dir)
+    tracks = await provider.populate_pool(pool_dir, force_refresh=True)
+    cc0_count = sum(1 for t in tracks if t.get("requires_attribution") == "false")
+    cc_by_count = sum(1 for t in tracks if t.get("requires_attribution") == "true")
     return {
         "status": "SUCCESS" if tracks else "SKIPPED",
         "tracks_count": len(tracks),
+        "cc0_tracks": cc0_count,
+        "cc_by_tracks": cc_by_count,
+        "note": "CC BY tracks will have attribution credit appended to each video's YouTube description automatically.",
         "tracks": tracks
     }
