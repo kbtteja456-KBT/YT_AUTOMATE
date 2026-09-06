@@ -272,3 +272,143 @@ async def test_description_agent_no_credit_for_cc0():
 
     assert "MUSIC CREDIT" not in desc
     assert "Kevin MacLeod" not in desc
+
+
+# ---------------------------------------------------------------------------
+# Cloud Autopilot (Laptop-off) Pipeline Verification Tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.anyio
+async def test_orchestrator_publish_immediately_persists_youtube_id_and_status():
+    """Verify that execute_job(publish_immediately=True) calls YouTubeAgent, updates DB records, and returns PUBLISHED."""
+    from backend.app.pipeline.orchestrator import PipelineOrchestrator
+    from backend.app.models.video import Script, Storyboard, Scene, VisualType, QCReport
+    from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
+    from backend.app.models.job import JobState
+
+    mock_db = MagicMock()
+    mock_db.videos.find.return_value = []
+    mock_db.publishing_jobs.find_one.return_value = {"_id": "test_job_1", "state": JobState.CREATED.value}
+
+    mock_idea = AsyncMock()
+    mock_idea.generate_daily_topic.return_value = {
+        "topic": "Python Quiz",
+        "question_code": "print(2+2)",
+        "options": ["A) 4", "B) 5", "C) 22", "D) Error"],
+        "correct_option": "A",
+        "explanation": "2+2=4",
+        "concept_tag": "arithmetic",
+    }
+
+    mock_research = AsyncMock()
+    mock_research_report = MagicMock()
+    mock_research_report.key_takeaway = "Basic math in Python"
+    mock_research.conduct_research.return_value = mock_research_report
+
+    mock_fact = AsyncMock()
+    mock_fact.verify_and_prune.return_value = mock_research_report
+
+    mock_hook = AsyncMock()
+    mock_hook_cand = MagicMock()
+    mock_hook_cand.text = "Can you solve this Python quiz?"
+    mock_hook_cand.selected = True
+    mock_hook.generate_and_score_hooks.return_value = [mock_hook_cand]
+
+    mock_script = AsyncMock()
+    script_obj = MagicMock(spec=Script)
+    script_obj.topic = "Python Quiz"
+    script_obj.target_duration_sec = 30.0
+    mock_script.generate_script.return_value = script_obj
+
+    mock_storyboard = AsyncMock()
+    storyboard_obj = MagicMock(spec=Storyboard)
+    storyboard_obj.scenes = []
+    mock_storyboard.create_storyboard.return_value = storyboard_obj
+
+    mock_media = AsyncMock()
+    mock_media.collect_scene_assets.return_value = storyboard_obj
+
+    mock_voice = AsyncMock()
+    mock_voice.generate_voiceover.return_value = "dummy_audio.mp3"
+    mock_voice.last_music_attribution = None
+
+    mock_caption = AsyncMock()
+    mock_caption.generate_captions.return_value = ("dummy.ass", [])
+
+    mock_editor = AsyncMock()
+    mock_editor.render_video.return_value = "dummy_video.mp4"
+
+    mock_qc = AsyncMock()
+    mock_qc_report = QCReport(score=95.0, passed=True, details={"metadata": {"duration": 30.0}})
+    mock_qc.audit_video.return_value = mock_qc_report
+
+    mock_thumb = AsyncMock()
+    thumb_card = ThumbnailCard(
+        file_path="dummy_thumb.png",
+        file_hash="thash",
+        spec=ThumbnailSpec(source_frame_timestamp=0.0, overlay_text="")
+    )
+    mock_thumb.generate_custom_thumbnail.return_value = thumb_card
+
+    mock_title = AsyncMock()
+    mock_title.generate_title_and_tags.return_value = {
+        "title": "Python Quiz #Shorts",
+        "tags": ["python"],
+        "hashtags": ["#python"]
+    }
+
+    mock_desc = AsyncMock()
+    mock_desc.generate_description.return_value = "Quiz description #Shorts"
+
+    mock_yt = AsyncMock()
+    mock_yt.publish_short.return_value = {
+        "youtube_video_id": "yt_vid_test_123",
+        "youtube_url": "https://www.youtube.com/shorts/yt_vid_test_123",
+        "file_hash": "hash123",
+        "status": "PUBLISHED"
+    }
+
+    orchestrator = PipelineOrchestrator(
+        idea_agent=mock_idea,
+        research_agent=mock_research,
+        fact_check_agent=mock_fact,
+        hook_agent=mock_hook,
+        script_agent=mock_script,
+        storyboard_agent=mock_storyboard,
+        media_agent=mock_media,
+        voice_agent=mock_voice,
+        caption_agent=mock_caption,
+        editor_agent=mock_editor,
+        qc_agent=mock_qc,
+        thumbnail_agent=mock_thumb,
+        title_agent=mock_title,
+        description_agent=mock_desc,
+        youtube_agent=mock_yt,
+    )
+
+    with patch("backend.app.pipeline.orchestrator.compute_file_hash", return_value="hash123"):
+        with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
+            result = await orchestrator.execute_job(
+                job_id="test_job_1",
+                publish_immediately=True,
+                slot_index=1
+            )
+
+    assert result["status"] == "PUBLISHED"
+    assert result["youtube_video_id"] == "yt_vid_test_123"
+    assert result["youtube_url"] == "https://www.youtube.com/shorts/yt_vid_test_123"
+    assert mock_yt.publish_short.called
+
+
+def test_is_slot_published_today_checks_publishing_jobs():
+    """Verify is_slot_published_today detects published status from publishing_jobs."""
+    from backend.app.core.cron_scheduler import is_slot_published_today
+
+    mock_db = MagicMock()
+    mock_db.publishing_jobs.find_one.return_value = {"state": "PUBLISHED"}
+    mock_db.videos.find_one.return_value = None
+
+    with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
+        published = is_slot_published_today(slot_index=1, today_str="2026-09-06")
+
+    assert published is True

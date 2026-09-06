@@ -67,6 +67,7 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL || 'nvidia/nemotron-3.5-lightning:free' }}
           TIMEZONE: "Asia/Kolkata"
           ZERO_COST_MODE: "true"
         run: |

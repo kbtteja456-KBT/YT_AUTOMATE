@@ -20,6 +20,8 @@ def is_slot_published_today(slot_index: int, today_str: Optional[str] = None) ->
     """Check MongoDB to verify if a video was already published for the given slot today."""
     try:
         from backend.app.core.db import SyncMongoDB
+        from backend.app.core.security import compute_content_hash
+        from backend.app.models.job import JobState
         db = SyncMongoDB.get_db()
         tz = zoneinfo.ZoneInfo(settings.timezone)
         now = datetime.now(tz)
@@ -30,10 +32,31 @@ def is_slot_published_today(slot_index: int, today_str: Optional[str] = None) ->
         start_local = datetime.strptime(today_str, "%Y-%m-%d").replace(tzinfo=tz)
         start_utc = start_local.astimezone(timezone.utc)
 
-        # Check for published video with matching slot_index for today
+        # 1. Check publishing_jobs collection
+        idempotency_key = compute_content_hash(f"autopilot_{today_str}_slot{slot_index}")
+        job_doc = db.publishing_jobs.find_one({
+            "$or": [
+                {"idempotency_key": idempotency_key, "state": JobState.PUBLISHED.value},
+                {
+                    "slot_index": slot_index,
+                    "state": JobState.PUBLISHED.value,
+                    "$or": [
+                        {"published_at": {"$gte": start_utc}},
+                        {"created_at": {"$gte": start_utc}},
+                    ]
+                }
+            ]
+        })
+        if job_doc:
+            return True
+
+        # 2. Check videos collection
         doc = db.videos.find_one({
             "slot_index": slot_index,
-            "status": "PUBLISHED",
+            "$or": [
+                {"status": "PUBLISHED"},
+                {"youtube_video_id": {"$exists": True, "$ne": None}}
+            ],
             "$or": [
                 {"slot_date": today_str},
                 {"published_at": {"$gte": start_utc}},
@@ -107,7 +130,12 @@ async def execute_slot_pipeline(slot_index: int, custom_topic: Optional[str] = N
     orchestrator = _build_orchestrator(db)
     orchestrator.job_repo = JobRepository(db)
     orchestrator.video_repo = VideoRepository(db)
-    return await orchestrator.execute_job(job_id=job_id, custom_topic=custom_topic)
+    return await orchestrator.execute_job(
+        job_id=job_id,
+        custom_topic=custom_topic,
+        publish_immediately=True,
+        slot_index=slot_index
+    )
 
 
 async def run_slot_with_lock(slot_index: int, custom_topic: Optional[str] = None) -> dict:

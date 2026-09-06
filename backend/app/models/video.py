@@ -161,3 +161,6 @@ class Video(MongoBaseModel):
     youtube_url: Optional[str] = None
     youtube_published_at: Optional[datetime] = None
     privacy_status: str = "public"
+    slot_index: Optional[int] = None
+    slot_date: Optional[str] = None
+    status: str = "READY"

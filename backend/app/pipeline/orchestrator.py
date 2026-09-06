@@ -95,10 +95,11 @@ class PipelineOrchestrator:
         target_audience: str = "Students and Developers",
         custom_topic: Optional[str] = None,
         style_profile: Optional[StyleProfile] = None,
-        publish_immediately: bool = False
+        publish_immediately: bool = False,
+        slot_index: Optional[int] = None
     ) -> dict[str, Any]:
         """Execute all stages sequentially with automatic resumption from last checkpoint."""
-        logger.info(f"[Orchestrator] Beginning execution for Job {job_id}...")
+        logger.info(f"[Orchestrator] Beginning execution for Job {job_id} (slot: {slot_index})...")
 
         # 1. IDEA STAGE
         await self._transition_state(job_id, JobState.RESEARCHING)
@@ -108,7 +109,8 @@ class PipelineOrchestrator:
             idea_res = await self.idea.generate_daily_topic(
                 niche=niche,
                 target_audience=target_audience,
-                past_topics=[]
+                past_topics=[],
+                slot_index=slot_index or 1
             )
             topic = idea_res["topic"]
 
@@ -207,6 +209,11 @@ class PipelineOrchestrator:
         await self._transition_state(job_id, JobState.READY)
         logger.info(f"[Orchestrator] Video is READY and buffered for scheduled publish time!")
 
+        import zoneinfo
+        from backend.app.config import settings
+        tz = zoneinfo.ZoneInfo(settings.timezone)
+        today_slot_date = datetime.now(tz).strftime("%Y-%m-%d")
+
         video_record = Video(
             job_id=job_id,
             title=video_title,
@@ -218,7 +225,10 @@ class PipelineOrchestrator:
             thumbnail_path=thumbnail_card.file_path,
             duration_seconds=qc_report.details.get("metadata", {}).get("duration", 45.0),
             quality_score=qc_report.score,
-            qc_report=qc_report
+            qc_report=qc_report,
+            slot_index=slot_index,
+            slot_date=today_slot_date,
+            status="READY"
         )
 
         if self.video_repo:
@@ -227,17 +237,84 @@ class PipelineOrchestrator:
         # 13. OPTIONAL IMMEDIATE PUBLISHING (or executed at scheduled beat time)
         if publish_immediately and self.youtube:
             await self._transition_state(job_id, JobState.PUBLISHING)
+
+            # Query existing published file hashes to enforce pre-upload duplicate protection
+            existing_hashes: list[str] = []
+            try:
+                from backend.app.core.db import SyncMongoDB
+                db = SyncMongoDB.get_db()
+                existing_hashes = [
+                    v["file_hash"]
+                    for v in db.videos.find({"file_hash": {"$exists": True, "$ne": None}}, {"file_hash": 1})
+                    if v.get("file_hash")
+                ]
+            except Exception as dbe:
+                logger.warning(f"[Orchestrator] Could not load existing hashes for duplicate protection: {dbe}")
+
             upload_result = await self.youtube.publish_short(
                 video_filepath=rendered_video_path,
                 title=video_title,
                 description=description_text,
                 tags=video_tags,
                 thumbnail=thumbnail_card,
-                privacy_status="public"
+                privacy_status="public",
+                existing_hashes=existing_hashes
             )
             await self._transition_state(job_id, JobState.PUBLISHED)
-            video_record.youtube_video_id = upload_result.get("youtube_video_id")
-            video_record.youtube_url = upload_result.get("youtube_url")
+
+            youtube_video_id = upload_result.get("youtube_video_id")
+            youtube_url = upload_result.get("youtube_url")
+            published_time = datetime.now(timezone.utc)
+
+            video_record.youtube_video_id = youtube_video_id
+            video_record.youtube_url = youtube_url
+            video_record.youtube_published_at = published_time
+            video_record.status = "PUBLISHED"
+
+            # Persist upload metadata to db.videos and db.publishing_jobs
+            try:
+                from backend.app.core.db import SyncMongoDB
+                db = SyncMongoDB.get_db()
+                from bson import ObjectId
+                query_job = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+                db.publishing_jobs.update_one(
+                    query_job,
+                    {
+                        "$set": {
+                            "state": JobState.PUBLISHED.value,
+                            "youtube_video_id": youtube_video_id,
+                            "youtube_url": youtube_url,
+                            "published_at": published_time,
+                            "updated_at": published_time,
+                        }
+                    }
+                )
+                db.videos.update_one(
+                    {"job_id": str(job_id)},
+                    {
+                        "$set": {
+                            "status": "PUBLISHED",
+                            "youtube_video_id": youtube_video_id,
+                            "youtube_url": youtube_url,
+                            "youtube_published_at": published_time,
+                        }
+                    }
+                )
+            except Exception as upd_e:
+                logger.warning(f"[Orchestrator] Could not update job/video docs with YouTube info: {upd_e}")
+
+            return {
+                "status": "PUBLISHED",
+                "job_id": job_id,
+                "topic": topic,
+                "title": video_title,
+                "video_path": rendered_video_path,
+                "thumbnail_path": thumbnail_card.file_path,
+                "quality_score": qc_report.score,
+                "youtube_video_id": youtube_video_id,
+                "youtube_url": youtube_url,
+                "file_hash": video_record.file_hash,
+            }
 
         return {
             "status": "READY",

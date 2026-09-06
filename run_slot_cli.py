@@ -133,8 +133,13 @@ async def run_real_pipeline(slot_index: int, custom_topic: str | None = None) ->
     orchestrator.job_repo = JobRepository(db)
     orchestrator.video_repo = VideoRepository(db)
 
-    log_run(f"🤖 Launching real PipelineOrchestrator for job {job_id}...")
-    result = await orchestrator.execute_job(job_id=job_id, custom_topic=custom_topic)
+    log_run(f"🤖 Launching real PipelineOrchestrator for job {job_id} (slot {slot_index})...")
+    result = await orchestrator.execute_job(
+        job_id=job_id,
+        custom_topic=custom_topic,
+        publish_immediately=True,
+        slot_index=slot_index
+    )
 
     # Hard-assert that a real YouTube video ID was returned — never accept a fake success
     youtube_video_id = result.get("youtube_video_id") or result.get("video_id")
