@@ -1,22 +1,39 @@
 name: 24/7 Cloud YouTube Shorts Autopilot
 
 on:
+  # Backup scheduled cloud triggers (runs in GitHub's cloud even when your laptop is off):
+  # Slot 1: Target 07:00 AM IST (01:30 UTC):
+  #   - 01:15 UTC = 06:45 AM IST (Early pre-render window)
+  #   - 01:25 UTC = 06:55 AM IST (Target window)
+  #   - 01:30 UTC = 07:00 AM IST (Target publishing beat)
+  #   - 02:00 UTC = 07:30 AM IST (Cloud catch-up)
+  # Slot 2: Target 06:00 PM IST (12:30 UTC):
+  #   - 12:15 UTC = 05:45 PM IST (Early pre-render window)
+  #   - 12:25 UTC = 05:55 PM IST (Target window)
+  #   - 12:30 UTC = 06:00 PM IST (Target publishing beat)
+  #   - 13:00 UTC = 06:30 PM IST (Cloud catch-up)
+  #
+  # Note: Multiple triggers will NEVER publish duplicate videos.
+  # The MongoDB Atlas atomic slot lock guarantees exactly ONE published video per slot per date.
   schedule:
-    # Morning Slot 1 (Target: 07:00 AM IST / 01:30 UTC):
-    # Multiple off-peak intervals ensure runners start without queue delay,
-    # rendering the video so it is 100% published by 07:00 AM IST.
-    # The MongoDB slot lock automatically skips redundant runs once published.
     - cron: '15 1 * * *'   # 06:45 AM IST
     - cron: '25 1 * * *'   # 06:55 AM IST
     - cron: '30 1 * * *'   # 07:00 AM IST
-    # Evening Slot 2 (Target: 06:00 PM IST / 12:30 UTC):
+    - cron: '0 2 * * *'    # 07:30 AM IST (Catch-up)
     - cron: '15 12 * * *'  # 05:45 PM IST
     - cron: '25 12 * * *'  # 05:55 PM IST
     - cron: '30 12 * * *'  # 06:00 PM IST
+    - cron: '0 13 * * *'   # 06:30 PM IST (Catch-up)
+
+  # External webhook triggers from free cloud schedulers (cron-job.org / curl):
+  repository_dispatch:
+    types: [publish_slot_1, publish_slot_2, autopilot_trigger, health_check]
+
+  # Manual control from GitHub Actions tab:
   workflow_dispatch:
     inputs:
       slot:
-        description: 'Publishing Slot (1 = Morning 7 AM IST, 2 = Evening 6 PM IST, 0 = Auto-detect)'
+        description: 'Publishing Slot (1 = Morning 7 AM IST, 2 = Evening 6 PM IST, 0 = Auto-detect / Catch-up)'
         required: true
         default: '0'
         type: choice
@@ -25,18 +42,26 @@ on:
           - '1'
           - '2'
       force:
-        description: 'Force publish even if already published today'
+        description: 'Force publish even if this slot was already published today'
         required: false
         default: false
         type: boolean
-  repository_dispatch:
-    types: [autopilot_trigger, publish_slot_1, publish_slot_2]
+      dry_run:
+        description: 'Dry run: Generate and render video with QC audit, skip YouTube upload'
+        required: false
+        default: false
+        type: boolean
+      check_health:
+        description: 'Health check only: verify MongoDB Atlas, YouTube OAuth, OpenRouter, and FFmpeg'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   autopilot-publish:
-    name: Generate & Publish YouTube Short
+    name: Generate & Publish YouTube Short (Cloud Runner)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Code
@@ -58,7 +83,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
-      - name: Determine Slot & Run Autopilot
+      - name: Pre-Flight Secrets Validation
+        run: |
+          echo "============================================================"
+          echo "VALIDATING GITHUB SECRETS CONFIGURATION"
+          echo "============================================================"
+          MISSING=""
+          [ -z "${{ secrets.MONGODB_URI }}" ] && MISSING="$MISSING MONGODB_URI"
+          [ -z "${{ secrets.ENCRYPTION_KEY }}" ] && MISSING="$MISSING ENCRYPTION_KEY"
+          [ -z "${{ secrets.GOOGLE_CLIENT_ID }}" ] && MISSING="$MISSING GOOGLE_CLIENT_ID"
+          [ -z "${{ secrets.GOOGLE_CLIENT_SECRET }}" ] && MISSING="$MISSING GOOGLE_CLIENT_SECRET"
+          [ -z "${{ secrets.PEXELS_API_KEY }}" ] && MISSING="$MISSING PEXELS_API_KEY"
+          [ -z "${{ secrets.OPENROUTER_API_KEY }}" ] && MISSING="$MISSING OPENROUTER_API_KEY"
+
+          if [ -n "$MISSING" ]; then
+            echo "❌ ERROR: Missing required GitHub Secrets:$MISSING"
+            echo "Please configure them in your repository:"
+            echo "Settings -> Secrets and variables -> Actions -> Repository secrets"
+            exit 1
+          else
+            echo "✅ All 6 required GitHub Secrets are configured."
+          fi
+
+      - name: Execute Cloud Autopilot
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
@@ -66,29 +113,47 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          FMA_API_KEY: ${{ secrets.FMA_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL || 'nvidia/nemotron-3.5-lightning:free' }}
           TIMEZONE: "Asia/Kolkata"
           ZERO_COST_MODE: "true"
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SLOT="${{ github.event.inputs.slot }}"
-            FORCE_FLAG=""
-            if [ "${{ github.event.inputs.force }}" = "true" ]; then
-              FORCE_FLAG="--force"
-            fi
-            echo "Manually triggered Slot $SLOT (Force: $FORCE_FLAG)"
-            python run_slot_cli.py --slot $SLOT $FORCE_FLAG
-          elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "External Webhook Dispatched Trigger: ${{ github.event.action }}"
+          # 1. Check if Health Check requested
+          if [ "${{ github.event_name }}" = "repository_dispatch" ] && [ "${{ github.event.action }}" = "health_check" ]; then
+            echo "Running cloud health check via repository_dispatch..."
+            python run_slot_cli.py --check-health
+            exit $?
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.check_health }}" = "true" ]; then
+            echo "Running cloud health check via workflow_dispatch..."
+            python run_slot_cli.py --check-health
+            exit $?
+          fi
+
+          # 2. Parse flags for pipeline execution
+          EXTRA_FLAGS=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --force"
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
+          fi
+
+          # 3. Determine Slot target
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "External Cloud Webhook Triggered: ${{ github.event.action }}"
             if [ "${{ github.event.action }}" = "publish_slot_1" ]; then
-              python run_slot_cli.py --slot 1
+              python run_slot_cli.py --slot 1 $EXTRA_FLAGS
             elif [ "${{ github.event.action }}" = "publish_slot_2" ]; then
-              python run_slot_cli.py --slot 2
+              python run_slot_cli.py --slot 2 $EXTRA_FLAGS
             else
-              python run_slot_cli.py --slot 0
+              python run_slot_cli.py --slot 0 $EXTRA_FLAGS
             fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SLOT="${{ github.event.inputs.slot }}"
+            echo "Manual Workflow Triggered: Slot $SLOT (Flags: $EXTRA_FLAGS)"
+            python run_slot_cli.py --slot $SLOT $EXTRA_FLAGS
           else
-            echo "Autonomous scheduled cloud trigger based on IST schedule..."
+            echo "Autonomous Cloud Scheduled Cron Triggered (IST Schedule)..."
             python run_slot_cli.py --slot 0
           fi
