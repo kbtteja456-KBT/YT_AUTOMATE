@@ -2,12 +2,31 @@
 
 import os
 from typing import Optional, Any
+from urllib.parse import unquote, quote_plus
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.database import Database
 
 from backend.app.config import settings
 from backend.app.core.logging import logger
+
+
+def sanitize_mongodb_uri(uri: str) -> str:
+    """Ensure username and password in MongoDB URI are properly RFC 3986 URL-encoded."""
+    if not uri or "://" not in uri:
+        return uri
+    try:
+        scheme, rest = uri.split("://", 1)
+        if "@" in rest:
+            userinfo, host_and_rest = rest.rsplit("@", 1)
+            if ":" in userinfo:
+                user, password = userinfo.split(":", 1)
+                clean_user = quote_plus(unquote(user))
+                clean_pass = quote_plus(unquote(password))
+                return f"{scheme}://{clean_user}:{clean_pass}@{host_and_rest}"
+        return uri
+    except Exception:
+        return uri
 
 
 class AsyncMongoDB:
@@ -18,7 +37,7 @@ class AsyncMongoDB:
     @classmethod
     async def connect(cls, uri: Optional[str] = None, db_name: Optional[str] = None) -> None:
         """Initialize async Motor MongoDB connection and build indices."""
-        target_uri = uri or settings.mongodb_uri
+        target_uri = sanitize_mongodb_uri(uri or settings.mongodb_uri)
         target_db = db_name or settings.mongodb_db_name
 
         try:
@@ -88,7 +107,7 @@ class SyncMongoDB:
     @classmethod
     def connect(cls, uri: Optional[str] = None, db_name: Optional[str] = None) -> Database:
         """Initialize synchronous PyMongo connection."""
-        target_uri = uri or settings.mongodb_uri
+        target_uri = sanitize_mongodb_uri(uri or settings.mongodb_uri)
         target_db = db_name or settings.mongodb_db_name
 
         if cls.client is None:
