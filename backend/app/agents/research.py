@@ -94,7 +94,11 @@ class ResearchAgent(BaseAgent):
                         content_format="general"
                     )
                 elif res and res.get("question_code"):
-                    quiz_data = res
+                    try:
+                        FactCheckAgent._validate_ast_safety(res["question_code"])
+                        quiz_data = res
+                    except Exception as e:
+                        self.log(f"AI quiz snippet failed AST safety check ({e}), falling back to curated pool.", "WARNING")
             except Exception as e:
                 self.log(f"AI research fallback: {e}")
 

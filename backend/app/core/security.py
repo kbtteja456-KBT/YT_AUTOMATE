@@ -7,13 +7,19 @@ from cryptography.fernet import Fernet
 
 from backend.app.config import settings
 
-# Fallback default key generated for local setup if none in env (can be overridden via ENCRYPTION_KEY env var)
-_DEFAULT_LOCAL_KEY = Fernet.generate_key().decode("utf-8")
+MISSING_ENCRYPTION_KEY_ERROR = (
+    "ENCRYPTION_KEY is not set. Generate one with:\n"
+    "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"\n"
+    "and set it in your .env file. This value must stay constant — changing it "
+    "will invalidate all previously stored OAuth tokens."
+)
 
 
 def get_encryption_key() -> bytes:
-    """Retrieve the Fernet key from environment or use stable session key."""
-    key = settings.encryption_key or os.getenv("ENCRYPTION_KEY", _DEFAULT_LOCAL_KEY)
+    """Retrieve the Fernet key from environment or settings. Fails loudly if missing."""
+    key = (settings.encryption_key or os.getenv("ENCRYPTION_KEY", "")).strip()
+    if not key:
+        raise RuntimeError(MISSING_ENCRYPTION_KEY_ERROR)
     if isinstance(key, str):
         key = key.encode("utf-8")
     return key

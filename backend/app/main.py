@@ -22,12 +22,25 @@ from backend.app.core.cron_scheduler import start_autopilot_scheduler, stop_auto
 async def lifespan(app: FastAPI):
     """Application lifecycle hooks."""
     logger.info("Initializing AI YouTube Shorts Autopilot backend...")
+    # Verify ENCRYPTION_KEY is set and valid; fail loudly if missing
+    from backend.app.core.security import get_encryption_key
+    get_encryption_key()
+
     # Ensure storage paths exist
     settings.storage_path
     settings.temp_path
 
     # Connect to MongoDB
     await AsyncMongoDB.connect()
+
+    # Populate royalty-free music pool if configured
+    try:
+        from backend.app.providers.music.pixabay_music import PixabayMusicProvider
+        music_provider = PixabayMusicProvider()
+        pool_dir = Path(settings.media_storage_dir) / "audio" / "music_pool"
+        await music_provider.populate_pool(pool_dir)
+    except Exception as e:
+        logger.warning(f"Music pool startup note: {e}")
 
     # Check host resources
     safe, warnings = resource_guard.verify_safe_to_render()

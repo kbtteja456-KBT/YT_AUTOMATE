@@ -16,6 +16,7 @@ class ProviderType(str, Enum):
     STORAGE = "STORAGE"
     YOUTUBE = "YOUTUBE"
     THUMBNAIL = "THUMBNAIL"
+    MUSIC = "MUSIC"
 
 
 class ProviderStatus(str, Enum):

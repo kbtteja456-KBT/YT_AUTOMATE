@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
+from backend.app.config import settings
 from backend.app.agents.base import BaseAgent
 from backend.app.core.logging import logger
 from backend.app.core.ffmpeg_utils import get_ffmpeg_binary
@@ -29,16 +30,29 @@ class VoiceAgent(BaseAgent):
         pool_dir = Path(self.storage.get_path("audio", "music_pool"))
         pool_dir.mkdir(parents=True, exist_ok=True)
 
-        # Existing candidate tracks
-        existing_bg = Path(self.storage.get_path("audio", "bg_music.mp3"))
-        candidate_tracks = []
-        if existing_bg.exists():
-            candidate_tracks.append(str(existing_bg))
+        # Check if pool needs initialization and PIXABAY_API_KEY is available
+        pool_mp3s = list(pool_dir.glob("*.mp3"))
+        if len(pool_mp3s) < 8:
+            if settings.pixabay_api_key.strip():
+                try:
+                    from backend.app.providers.music.pixabay_music import PixabayMusicProvider
+                    provider = PixabayMusicProvider()
+                    await provider.populate_pool(pool_dir)
+                    pool_mp3s = list(pool_dir.glob("*.mp3"))
+                except Exception as e:
+                    self.log(f"Music pool population note: {e}", "WARNING")
+            else:
+                self.log(
+                    "Real music tracks are unavailable because PIXABAY_API_KEY is not configured. "
+                    "Please add PIXABAY_API_KEY to your .env file.",
+                    "WARNING"
+                )
 
-        # Check pool_dir for any other .mp3 files
-        for f in pool_dir.glob("*.mp3"):
-            if str(f) not in candidate_tracks:
-                candidate_tracks.append(str(f))
+        candidate_tracks = [str(f) for f in sorted(pool_dir.glob("*.mp3"))]
+        if not candidate_tracks:
+            existing_bg = Path(self.storage.get_path("audio", "bg_music.mp3"))
+            if existing_bg.exists():
+                candidate_tracks.append(str(existing_bg))
 
         # Rotate track index to prevent consecutive repetition
         VoiceAgent._last_music_index = (VoiceAgent._last_music_index + 1)

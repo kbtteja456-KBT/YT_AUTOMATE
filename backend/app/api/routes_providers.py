@@ -60,6 +60,13 @@ async def list_providers() -> list[dict[str, Any]]:
             "is_zero_cost": True,
             "is_paid": False,
             "enabled": bool(settings.google_client_id)
+        },
+        {
+            "name": "Pixabay Royalty-Free Music Pool",
+            "type": "MUSIC",
+            "is_zero_cost": True,
+            "is_paid": False,
+            "enabled": bool(settings.pixabay_api_key)
         }
     ]
 
@@ -163,8 +170,30 @@ async def check_all_providers_health() -> dict[str, Any]:
         "message": f"Stock APIs active (Pexels: {'OK' if has_pexels else 'MISSING'}, Pixabay: {'OK' if has_pixabay else 'MISSING'})"
     }
 
+    # 8. Check Pixabay Royalty-Free Music Provider
+    results["music"] = {
+        "provider": "Pixabay Music Provider",
+        "status": "CONNECTED" if has_pixabay else "NOT_CONFIGURED",
+        "is_zero_cost": True,
+        "message": "PIXABAY_API_KEY configured; royalty-free music pool active" if has_pixabay else "Real music tracks are unavailable because PIXABAY_API_KEY is not configured. Please add PIXABAY_API_KEY to your .env file."
+    }
+
     return {
         "timestamp": time.time(),
         "zero_cost_mode": settings.zero_cost_mode,
         "subsystems": results
+    }
+
+
+@router.post("/music/setup")
+async def setup_music_pool_endpoint() -> dict[str, Any]:
+    """Download and populate royalty-free music pool tracks matching quiz tone."""
+    from backend.app.providers.music.pixabay_music import PixabayMusicProvider
+    provider = PixabayMusicProvider()
+    pool_dir = Path(settings.media_storage_dir) / "audio" / "music_pool"
+    tracks = await provider.populate_pool(pool_dir)
+    return {
+        "status": "SUCCESS" if tracks else "SKIPPED",
+        "tracks_count": len(tracks),
+        "tracks": tracks
     }

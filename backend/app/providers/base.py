@@ -184,3 +184,13 @@ class ThumbnailProvider(BaseProvider):
     ) -> ThumbnailCard:
         """Extract frame, apply color enhancements and text overlays."""
         pass
+
+
+class MusicProvider(BaseProvider):
+    """Abstract interface for background music acquisition and pool management."""
+    provider_type = ProviderType.MUSIC
+
+    @abstractmethod
+    async def populate_pool(self, target_dir: Any, min_tracks: int = 8) -> list[dict[str, Any]]:
+        """Fetch and populate pool with royalty-free tracks."""
+        pass
