@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header, Query, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from backend.app.config import settings
@@ -404,8 +404,10 @@ async def stop_autopilot_endpoint() -> dict[str, Any]:
 @router.post("/run-slot/{slot_index}")
 async def trigger_autopilot_slot(
     slot_index: int,
+    background_tasks: BackgroundTasks,
     request: Optional[TriggerSlotRequest] = None,
-    x_autopilot_secret: Optional[str] = Header(default=None)
+    x_autopilot_secret: Optional[str] = Header(default=None),
+    async_mode: bool = Query(default=True, description="Execute in background to avoid cloud gateway timeouts")
 ) -> dict[str, Any]:
     """Trigger morning (slot 1 = 07:00 IST) or evening (slot 2 = 18:00 IST) publishing immediately."""
     if slot_index not in (1, 2):
@@ -417,6 +419,15 @@ async def trigger_autopilot_slot(
 
     custom_topic = request.custom_topic if request else None
     from backend.app.core.cron_scheduler import run_slot_with_lock
+
+    if async_mode:
+        background_tasks.add_task(run_slot_with_lock, slot_index=slot_index, custom_topic=custom_topic)
+        return {
+            "status": "QUEUED",
+            "slot_index": slot_index,
+            "message": f"Slot {slot_index} execution launched asynchronously. Check /api/autopilot/status for live progress."
+        }
+
     result = await run_slot_with_lock(slot_index=slot_index, custom_topic=custom_topic)
     return result
 

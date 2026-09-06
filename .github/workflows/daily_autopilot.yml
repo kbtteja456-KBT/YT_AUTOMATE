@@ -2,18 +2,26 @@ name: 24/7 Cloud YouTube Shorts Autopilot
 
 on:
   schedule:
-    # 07:00 AM IST is 01:30 UTC
-    - cron: '30 1 * * *'
-    # 06:00 PM (18:00) IST is 12:30 UTC
-    - cron: '30 12 * * *'
+    # Morning Slot 1 (Target: 07:00 AM IST / 01:30 UTC):
+    # Multiple off-peak intervals ensure runners start without queue delay,
+    # rendering the video so it is 100% published by 07:00 AM IST.
+    # The MongoDB slot lock automatically skips redundant runs once published.
+    - cron: '15 1 * * *'   # 06:45 AM IST
+    - cron: '25 1 * * *'   # 06:55 AM IST
+    - cron: '30 1 * * *'   # 07:00 AM IST
+    # Evening Slot 2 (Target: 06:00 PM IST / 12:30 UTC):
+    - cron: '15 12 * * *'  # 05:45 PM IST
+    - cron: '25 12 * * *'  # 05:55 PM IST
+    - cron: '30 12 * * *'  # 06:00 PM IST
   workflow_dispatch:
     inputs:
       slot:
-        description: 'Publishing Slot (1 = Morning 7 AM IST, 2 = Evening 6 PM IST)'
+        description: 'Publishing Slot (1 = Morning 7 AM IST, 2 = Evening 6 PM IST, 0 = Auto-detect)'
         required: true
-        default: '1'
+        default: '0'
         type: choice
         options:
+          - '0'
           - '1'
           - '2'
       force:
@@ -21,6 +29,8 @@ on:
         required: false
         default: false
         type: boolean
+  repository_dispatch:
+    types: [autopilot_trigger, publish_slot_1, publish_slot_2]
 
 jobs:
   autopilot-publish:
@@ -56,6 +66,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TIMEZONE: "Asia/Kolkata"
           ZERO_COST_MODE: "true"
         run: |
@@ -67,6 +78,15 @@ jobs:
             fi
             echo "Manually triggered Slot $SLOT (Force: $FORCE_FLAG)"
             python run_slot_cli.py --slot $SLOT $FORCE_FLAG
+          elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "External Webhook Dispatched Trigger: ${{ github.event.action }}"
+            if [ "${{ github.event.action }}" = "publish_slot_1" ]; then
+              python run_slot_cli.py --slot 1
+            elif [ "${{ github.event.action }}" = "publish_slot_2" ]; then
+              python run_slot_cli.py --slot 2
+            else
+              python run_slot_cli.py --slot 0
+            fi
           else
             echo "Autonomous scheduled cloud trigger based on IST schedule..."
             python run_slot_cli.py --slot 0
