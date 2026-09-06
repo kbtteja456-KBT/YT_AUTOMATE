@@ -92,7 +92,7 @@ class SyncMongoDB:
         target_db = db_name or settings.mongodb_db_name
 
         if cls.client is None:
-            cls.client = MongoClient(target_uri, serverSelectionTimeoutMS=3000)
+            cls.client = MongoClient(target_uri, serverSelectionTimeoutMS=15000)
             cls.db = cls.client[target_db]
             logger.info(f"Connected to Sync PyMongo: {target_db}")
         return cls.db
