@@ -100,7 +100,10 @@ class ResearchAgent(BaseAgent):
 
         # 3. Fallback to matching or default quiz from PYTHON_QUIZ_POOL
         if not quiz_data:
-            match = next((q for q in PYTHON_QUIZ_POOL if q["concept_tag"] in topic.lower()), None)
+            match = next(
+                (q for q in PYTHON_QUIZ_POOL if q["concept_tag"] in topic.lower() or q["concept_tag"].replace("_", " ") in topic.lower() or q["concept_tag"].replace("_", "") in topic.lower()),
+                None
+            )
             quiz_data = match or PYTHON_QUIZ_POOL[0]
 
         items = [

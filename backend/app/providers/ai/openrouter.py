@@ -63,25 +63,30 @@ class OpenRouterProvider(AIProvider):
     def _clean_json_markdown(self, raw_text: str) -> str:
         """Extract and clean JSON payload from markdown fences or conversational preambles."""
         text = raw_text.strip()
-        # Strip ```json ... ``` or ``` ... ```
+        # 1. Search for fenced ```json ... ``` blocks first
         if "```" in text:
-            match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-            if match:
-                text = match.group(1).strip()
+            json_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+            for block in reversed(json_blocks):
+                b = block.strip()
+                if (b.startswith("{") and b.endswith("}")) or (b.startswith("[") and b.endswith("]")):
+                    return b
 
-        # Find first { or [ and last } or ]
-        first_brace = text.find("{")
-        first_bracket = text.find("[")
+        # 2. Strip thinking blocks if present
+        clean = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+
+        # Find outermost { or [ and last } or ]
+        first_brace = clean.find("{")
+        first_bracket = clean.find("[")
         if first_brace != -1 and (first_bracket == -1 or first_brace < first_bracket):
-            last_brace = text.rfind("}")
+            last_brace = clean.rfind("}")
             if last_brace != -1:
-                text = text[first_brace:last_brace + 1]
+                clean = clean[first_brace:last_brace + 1]
         elif first_bracket != -1:
-            last_bracket = text.rfind("]")
+            last_bracket = clean.rfind("]")
             if last_bracket != -1:
-                text = text[first_bracket:last_bracket + 1]
+                clean = clean[first_bracket:last_bracket + 1]
 
-        return text
+        return clean
 
     def _attempt_json_repair(self, text: str) -> Optional[dict[str, Any]]:
         """Attempt heuristic recovery of slightly malformed or truncated JSON."""
