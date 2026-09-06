@@ -73,17 +73,23 @@ def test_publish_slot_task_missed_slot_rule():
 
 
 def test_publish_slot_task_advances_ready_video():
-    """Verify that when a video is READY, it transitions to PUBLISHING."""
+    """Verify that when a video is READY, publish_slot_task calls YouTube publish and transitions to PUBLISHED."""
     mock_mongo = mongomock.MongoClient()["youtube_autopilot"]
 
-    with patch("backend.app.celery_app.tasks.SyncMongoDB.get_db", return_value=mock_mongo):
-        # Pre-seed a ready job
+    with patch("backend.app.celery_app.tasks.SyncMongoDB.get_db", return_value=mock_mongo), \
+         patch("backend.app.agents.youtube.YouTubeAgent.publish_short", return_value={
+             "youtube_video_id": "test_yt_video_123",
+             "youtube_url": "https://www.youtube.com/shorts/test_yt_video_123",
+             "status": "PUBLISHED"
+         }) as mock_publish:
         from backend.app.core.security import compute_content_hash
         now = datetime.now(timezone.utc)
         date_str = now.strftime("%Y-%m-%d")
         idemp = compute_content_hash(f"autopilot_{date_str}_slot2")
+        job_id = "job_ready_test_slot2"
 
         mock_mongo.publishing_jobs.insert_one({
+            "_id": job_id,
             "slot_index": 2,
             "scheduled_at": now,
             "state": JobState.READY.value,
@@ -91,10 +97,67 @@ def test_publish_slot_task_advances_ready_video():
             "created_at": now,
             "updated_at": now
         })
+        mock_mongo.videos.insert_one({
+            "job_id": job_id,
+            "title": "Python Quiz #Shorts",
+            "description": "Quiz description",
+            "file_path": "media_storage/rendered/test.mp4",
+            "tags": ["Python"],
+            "thumbnail_path": "media_storage/thumbnails/test.jpg"
+        })
 
         res = publish_slot_task(slot_index=2)
-        assert res["status"] == "PUBLISHING"
+        assert res["status"] == "PUBLISHED"
+        assert res["youtube_video_id"] == "test_yt_video_123"
+        mock_publish.assert_called_once()
+        call_kwargs = mock_publish.call_args.kwargs
+        assert call_kwargs["video_filepath"] == "media_storage/rendered/test.mp4"
+        assert call_kwargs["title"] == "Python Quiz #Shorts"
+        assert call_kwargs["description"] == "Quiz description"
+        assert call_kwargs["tags"] == ["Python"]
+        assert call_kwargs["privacy_status"] == "public"
+        assert call_kwargs["thumbnail"] is not None
 
         # Check DB update
-        updated = mock_mongo.publishing_jobs.find_one({"idempotency_key": idemp})
-        assert updated["state"] == JobState.PUBLISHING.value
+        updated_job = mock_mongo.publishing_jobs.find_one({"idempotency_key": idemp})
+        assert updated_job["state"] == JobState.PUBLISHED.value
+        assert updated_job["youtube_video_id"] == "test_yt_video_123"
+
+        updated_video = mock_mongo.videos.find_one({"job_id": job_id})
+        assert updated_video["youtube_video_id"] == "test_yt_video_123"
+        assert updated_video["youtube_url"] == "https://www.youtube.com/shorts/test_yt_video_123"
+
+
+def test_publish_slot_task_fails_cleanly_on_upload_error():
+    """Verify that if YouTube upload fails, the job transitions to FAILED and never PUBLISHED."""
+    mock_mongo = mongomock.MongoClient()["youtube_autopilot"]
+
+    with patch("backend.app.celery_app.tasks.SyncMongoDB.get_db", return_value=mock_mongo), \
+         patch("backend.app.agents.youtube.YouTubeAgent.publish_short", side_effect=RuntimeError("Upload rejected")):
+        from backend.app.core.security import compute_content_hash
+        now = datetime.now(timezone.utc)
+        date_str = now.strftime("%Y-%m-%d")
+        idemp = compute_content_hash(f"autopilot_{date_str}_slot2")
+        job_id = "job_failed_test_slot2"
+
+        mock_mongo.publishing_jobs.insert_one({
+            "_id": job_id,
+            "slot_index": 2,
+            "scheduled_at": now,
+            "state": JobState.READY.value,
+            "idempotency_key": idemp,
+            "created_at": now,
+            "updated_at": now
+        })
+        mock_mongo.videos.insert_one({
+            "job_id": job_id,
+            "title": "Python Quiz #Shorts",
+            "file_path": "media_storage/rendered/test.mp4"
+        })
+
+        res = publish_slot_task(slot_index=2)
+        assert res["status"] == "FAILED"
+
+        updated_job = mock_mongo.publishing_jobs.find_one({"idempotency_key": idemp})
+        assert updated_job["state"] == JobState.FAILED.value
+        assert "YouTube publishing failed" in updated_job["error_message"]

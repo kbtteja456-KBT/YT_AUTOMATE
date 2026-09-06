@@ -34,11 +34,37 @@ from backend.app.providers.tts.edge_tts_provider import EdgeTTSProvider
 from backend.app.providers.stt.whisper_provider import WhisperProvider
 from backend.app.providers.media.stock_media import StockMediaEngine
 from backend.app.providers.thumbnail.thumbnail_engine import ThumbnailEngine
+from backend.app.core.errors import YouTubeAPIError
 from backend.app.providers.youtube.youtube_client import YouTubeClientProvider
 
 
-def _build_orchestrator() -> PipelineOrchestrator:
+def _get_authenticated_youtube_provider(db: Optional[Any] = None) -> YouTubeClientProvider:
+    """Instantiate a real YouTubeClientProvider with Google OAuth credentials if connected in MongoDB."""
+    if db is None:
+        db = SyncMongoDB.get_db()
+
+    creds = None
+    try:
+        channel = db.youtube_channels.find_one({"is_active": True}) or db.youtube_channels.find_one()
+        if channel:
+            token_doc = db.oauth_tokens.find_one({"channel_id": channel["channel_id"]})
+            if token_doc:
+                from backend.app.models.channel import OAuthTokenRecord
+                from backend.app.core.oauth import GoogleOAuthManager
+                rec = OAuthTokenRecord.model_validate(token_doc)
+                refresh_token = rec.get_refresh_token()
+                access_token = rec.get_access_token()
+                creds = GoogleOAuthManager.get_google_credentials(access_token, refresh_token)
+    except Exception as ce:
+        logger.warning(f"[Celery] Could not load Google OAuth credentials: {ce}")
+
+    return YouTubeClientProvider(credentials=creds)
+
+
+def _build_orchestrator(db: Any = None) -> PipelineOrchestrator:
     """Build a concrete PipelineOrchestrator using real provider and agent implementations."""
+    if db is None:
+        db = SyncMongoDB.get_db()
     storage = LocalStorageProvider(base_dir=settings.media_storage_dir)
     ai_provider = OpenRouterProvider(api_key=settings.openrouter_api_key, timeout_seconds=5.0, max_retries=1)
     search_provider = DuckDuckGoSearchProvider()
@@ -46,7 +72,7 @@ def _build_orchestrator() -> PipelineOrchestrator:
     stt_provider = WhisperProvider()
     stock_provider = StockMediaEngine(media_dir=settings.media_storage_dir)
     thumb_provider = ThumbnailEngine()
-    youtube_provider = YouTubeClientProvider()
+    youtube_provider = _get_authenticated_youtube_provider(db)
 
     idea = IdeaAgent(ai_provider=ai_provider)
     research = ResearchAgent(ai_provider=ai_provider, search_provider=search_provider)
@@ -220,6 +246,15 @@ def publish_slot_task(slot_index: int = 1) -> dict[str, Any]:
 
     job = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})
 
+    if job and job.get("state") == JobState.PUBLISHED.value:
+        logger.info(f"[Celery Beat] Slot {slot_index} is ALREADY published (job_id={job['_id']}). Skipping.")
+        return {
+            "status": "ALREADY_PUBLISHED",
+            "job_id": str(job["_id"]),
+            "youtube_video_id": job.get("youtube_video_id"),
+            "slot": slot_index
+        }
+
     if not job or job.get("state") != JobState.READY.value:
         # Video is NOT ready at scheduled publish time!
         # Mark slot MISSED. Never fake success!
@@ -247,12 +282,187 @@ def publish_slot_task(slot_index: int = 1) -> dict[str, Any]:
             })
         return {"status": "MISSED", "slot": slot_index}
 
-    # If READY, transition to PUBLISHING
+    job_id_str = str(job["_id"])
+    logger.info(f"[Celery Beat] Slot {slot_index} is READY (job_id={job_id_str}). Transitioning to PUBLISHING...")
+
+    # Transition state to PUBLISHING
     db.publishing_jobs.update_one(
         {"_id": job["_id"]},
         {"$set": {"state": JobState.PUBLISHING.value, "updated_at": now}}
     )
-    return {"status": "PUBLISHING", "job_id": str(job["_id"]), "slot": slot_index}
+
+    try:
+        # Retrieve stored video record from MongoDB
+        video_doc = db.videos.find_one({"job_id": job_id_str})
+        if not video_doc and job.get("id"):
+            video_doc = db.videos.find_one({"job_id": str(job["id"])})
+
+        job_details = job.get("details") or {}
+        video_filepath = (
+            (video_doc.get("file_path") if video_doc else None)
+            or job.get("file_path")
+            or job.get("video_path")
+            or job_details.get("video_path")
+        )
+        title = (
+            (video_doc.get("title") if video_doc else None)
+            or job.get("title")
+            or job_details.get("title")
+            or job.get("topic")
+            or "Python Quiz #Shorts"
+        )
+        description = (
+            (video_doc.get("description") if video_doc else None)
+            or job.get("description")
+            or job_details.get("description")
+            or ""
+        )
+        tags = (
+            (video_doc.get("tags") if video_doc else None)
+            or job.get("tags")
+            or job_details.get("tags")
+            or ["Python", "Shorts", "Coding"]
+        )
+        thumbnail_path = (
+            (video_doc.get("thumbnail_path") if video_doc else None)
+            or job.get("thumbnail_path")
+            or job_details.get("thumbnail_path")
+        )
+
+        if not video_filepath:
+            raise YouTubeAPIError(f"Cannot publish job {job_id_str}: No rendered video file path recorded in MongoDB.")
+
+        thumb_card = None
+        if thumbnail_path:
+            from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
+            thumb_card = ThumbnailCard(
+                file_path=str(thumbnail_path),
+                file_hash="thumb",
+                spec=ThumbnailSpec(source_frame_timestamp=0.0, overlay_text="")
+            )
+
+        # Build real YouTubeAgent with loaded credentials
+        youtube_provider = _get_authenticated_youtube_provider(db)
+        youtube_agent = YouTubeAgent(youtube_provider=youtube_provider)
+
+        # Execute upload coroutine
+        async def _do_upload() -> dict[str, Any]:
+            return await youtube_agent.publish_short(
+                video_filepath=str(video_filepath),
+                title=str(title),
+                description=str(description),
+                tags=list(tags),
+                thumbnail=thumb_card,
+                privacy_status="public"
+            )
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            upload_res_holder: dict[str, Any] = {}
+            upload_err_holder: dict[str, Exception] = {}
+
+            def _thread_runner():
+                try:
+                    upload_res_holder["val"] = asyncio.run(_do_upload())
+                except Exception as ex:
+                    upload_err_holder["val"] = ex
+
+            worker = threading.Thread(target=_thread_runner, daemon=True)
+            worker.start()
+            worker.join()
+
+            if "val" in upload_err_holder:
+                raise upload_err_holder["val"]
+            upload_result = upload_res_holder["val"]
+        else:
+            upload_result = asyncio.run(_do_upload())
+
+        youtube_video_id = upload_result.get("youtube_video_id") or upload_result.get("video_id")
+        youtube_url = upload_result.get("youtube_url") or upload_result.get("url")
+
+        if not youtube_video_id:
+            raise YouTubeAPIError("YouTube API did not return a confirmed real video ID.")
+
+        published_time = datetime.now(timezone.utc)
+
+        # Store real youtube_video_id and youtube_url on the video record
+        if video_doc:
+            db.videos.update_one(
+                {"_id": video_doc["_id"]},
+                {
+                    "$set": {
+                        "youtube_video_id": youtube_video_id,
+                        "youtube_url": youtube_url,
+                        "youtube_published_at": published_time,
+                        "privacy_status": "public",
+                        "status": "PUBLISHED"
+                    }
+                }
+            )
+        else:
+            db.videos.update_one(
+                {"job_id": job_id_str},
+                {
+                    "$set": {
+                        "youtube_video_id": youtube_video_id,
+                        "youtube_url": youtube_url,
+                        "youtube_published_at": published_time,
+                        "privacy_status": "public",
+                        "status": "PUBLISHED"
+                    }
+                },
+                upsert=False
+            )
+
+        # Only then transition state to PUBLISHED
+        db.publishing_jobs.update_one(
+            {"_id": job["_id"]},
+            {
+                "$set": {
+                    "state": JobState.PUBLISHED.value,
+                    "youtube_video_id": youtube_video_id,
+                    "youtube_url": youtube_url,
+                    "published_at": published_time,
+                    "updated_at": published_time
+                }
+            }
+        )
+
+        logger.info(
+            f"🎉 [Celery Beat] Slot {slot_index} PUBLISHED successfully! "
+            f"Video ID: {youtube_video_id} -> {youtube_url}"
+        )
+        return {
+            "status": "PUBLISHED",
+            "job_id": job_id_str,
+            "slot": slot_index,
+            "youtube_video_id": youtube_video_id,
+            "youtube_url": youtube_url
+        }
+
+    except Exception as exc:
+        logger.exception(f"❌ [Celery Beat] Publishing failed for Slot {slot_index} (job_id={job_id_str}): {exc}")
+        failed_time = datetime.now(timezone.utc)
+        db.publishing_jobs.update_one(
+            {"_id": job["_id"]},
+            {
+                "$set": {
+                    "state": JobState.FAILED.value,
+                    "error_message": f"YouTube publishing failed: {str(exc)}",
+                    "updated_at": failed_time
+                }
+            }
+        )
+        return {
+            "status": "FAILED",
+            "job_id": job_id_str,
+            "slot": slot_index,
+            "error": str(exc)
+        }
 
 
 @shared_task
