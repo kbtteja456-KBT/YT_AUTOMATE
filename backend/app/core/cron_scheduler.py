@@ -53,14 +53,20 @@ def is_slot_published_today(slot_index: int, today_str: Optional[str] = None) ->
         # 2. Check videos collection
         doc = db.videos.find_one({
             "slot_index": slot_index,
-            "$or": [
-                {"status": "PUBLISHED"},
-                {"youtube_video_id": {"$exists": True, "$ne": None}}
-            ],
-            "$or": [
-                {"slot_date": today_str},
-                {"published_at": {"$gte": start_utc}},
-                {"created_at": {"$gte": start_utc}}
+            "$and": [
+                {
+                    "$or": [
+                        {"status": "PUBLISHED"},
+                        {"youtube_video_id": {"$exists": True, "$ne": None}}
+                    ]
+                },
+                {
+                    "$or": [
+                        {"slot_date": today_str},
+                        {"published_at": {"$gte": start_utc}},
+                        {"created_at": {"$gte": start_utc}}
+                    ]
+                }
             ]
         })
         return doc is not None

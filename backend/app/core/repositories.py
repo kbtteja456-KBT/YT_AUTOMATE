@@ -129,8 +129,14 @@ class VideoRepository:
         return value
 
     async def create_video(self, video: Video) -> Video:
-        """Insert completed video record."""
+        """Insert or update completed video record."""
         doc = video.to_mongo_dict()
+        if video.job_id:
+            existing = await self._maybe_await(self.collection.find_one({"job_id": str(video.job_id)}))
+            if existing:
+                await self._maybe_await(self.collection.update_one({"_id": existing["_id"]}, {"$set": doc}))
+                video.id = str(existing["_id"])
+                return video
         res = await self._maybe_await(self.collection.insert_one(doc))
         video.id = str(res.inserted_id)
         return video

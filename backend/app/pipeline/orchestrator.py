@@ -292,7 +292,17 @@ class PipelineOrchestrator:
                     db = SyncMongoDB.get_db()
                     existing_hashes = [
                         v["file_hash"]
-                        for v in db.videos.find({"file_hash": {"$exists": True, "$ne": None}}, {"file_hash": 1})
+                        for v in db.videos.find(
+                            {
+                                "file_hash": {"$exists": True, "$ne": None},
+                                "job_id": {"$ne": str(job_id)},
+                                "$or": [
+                                    {"status": "PUBLISHED"},
+                                    {"youtube_video_id": {"$exists": True, "$ne": None}}
+                                ]
+                            },
+                            {"file_hash": 1}
+                        )
                         if v.get("file_hash")
                     ]
                 except Exception as dbe:

@@ -412,3 +412,129 @@ def test_is_slot_published_today_checks_publishing_jobs():
         published = is_slot_published_today(slot_index=1, today_str="2026-09-06")
 
     assert published is True
+
+
+def test_is_slot_published_today_ignores_uncompleted_ready_video():
+    """Verify is_slot_published_today returns False when a video is only READY and not PUBLISHED."""
+    import mongomock
+    from backend.app.core.cron_scheduler import is_slot_published_today
+
+    mock_db = mongomock.MongoClient()["youtube_autopilot"]
+    # Insert an un-published video in READY state
+    mock_db.videos.insert_one({
+        "slot_index": 1,
+        "slot_date": "2026-09-07",
+        "status": "READY",
+        "youtube_video_id": None,
+        "file_hash": "hash_ready_video"
+    })
+
+    with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
+        published = is_slot_published_today(slot_index=1, today_str="2026-09-07")
+
+    assert published is False
+
+
+@pytest.mark.anyio
+async def test_orchestrator_duplicate_hash_query_excludes_current_job():
+    """Verify orchestrator duplicate protection does not self-block on current job's video record."""
+    import mongomock
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from backend.app.pipeline.orchestrator import PipelineOrchestrator
+    from backend.app.models.video import Script, Storyboard, QCReport
+    from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
+
+    mock_db = mongomock.MongoClient()["youtube_autopilot"]
+    # Insert a video record for the current job with status READY
+    mock_db.videos.insert_one({
+        "job_id": "current_job_123",
+        "file_hash": "test_unique_hash",
+        "status": "READY",
+        "youtube_video_id": None
+    })
+
+    mock_idea = AsyncMock()
+    mock_idea.generate_daily_topic.return_value = {
+        "topic": "Python Quiz",
+        "question_code": "print(2+2)",
+        "options": ["A) 4", "B) 5", "C) 22", "D) Error"],
+        "correct_option": "A",
+        "explanation": "2+2=4",
+        "concept_tag": "arithmetic",
+    }
+    mock_research = AsyncMock()
+    mock_research.conduct_research.return_value = MagicMock(key_takeaway="math")
+    mock_fact = AsyncMock()
+    mock_fact.verify_and_prune.return_value = MagicMock(key_takeaway="math")
+    mock_hook = AsyncMock()
+    mock_hook.generate_and_score_hooks.return_value = [MagicMock(text="Hook", selected=True)]
+    mock_script = AsyncMock()
+    mock_script.generate_script.return_value = MagicMock(spec=Script, topic="Python Quiz", target_duration_sec=30.0)
+    mock_storyboard = AsyncMock()
+    storyboard_obj = MagicMock(spec=Storyboard, scenes=[])
+    mock_storyboard.create_storyboard.return_value = storyboard_obj
+    mock_media = AsyncMock()
+    mock_media.collect_scene_assets.return_value = storyboard_obj
+    mock_voice = AsyncMock()
+    mock_voice.generate_voiceover.return_value = "dummy_audio.mp3"
+    mock_voice.last_music_attribution = None
+    mock_caption = AsyncMock()
+    mock_caption.generate_captions.return_value = ("dummy.ass", [])
+    mock_editor = AsyncMock()
+    mock_editor.render_video.return_value = "dummy_video.mp4"
+    mock_qc = AsyncMock()
+    mock_qc.audit_video.return_value = QCReport(score=95.0, passed=True, details={"metadata": {"duration": 30.0}})
+    mock_thumb = AsyncMock()
+    mock_thumb.generate_custom_thumbnail.return_value = ThumbnailCard(
+        file_path="dummy_thumb.png",
+        file_hash="thash",
+        spec=ThumbnailSpec(source_frame_timestamp=0.0, overlay_text="")
+    )
+    mock_title = AsyncMock()
+    mock_title.generate_title_and_tags.return_value = {
+        "title": "Python Quiz #Shorts",
+        "tags": ["python"],
+        "hashtags": ["#python"]
+    }
+    mock_desc = AsyncMock()
+    mock_desc.generate_description.return_value = "Quiz description #Shorts"
+    mock_yt = AsyncMock()
+    mock_yt.publish_short.return_value = {
+        "youtube_video_id": "published_id_999",
+        "youtube_url": "https://www.youtube.com/shorts/published_id_999",
+        "file_hash": "test_unique_hash",
+        "status": "PUBLISHED"
+    }
+
+    orchestrator = PipelineOrchestrator(
+        idea_agent=mock_idea,
+        research_agent=mock_research,
+        fact_check_agent=mock_fact,
+        hook_agent=mock_hook,
+        script_agent=mock_script,
+        storyboard_agent=mock_storyboard,
+        media_agent=mock_media,
+        voice_agent=mock_voice,
+        caption_agent=mock_caption,
+        editor_agent=mock_editor,
+        qc_agent=mock_qc,
+        thumbnail_agent=mock_thumb,
+        title_agent=mock_title,
+        description_agent=mock_desc,
+        youtube_agent=mock_yt,
+    )
+
+    with patch("backend.app.pipeline.orchestrator.compute_file_hash", return_value="test_unique_hash"):
+        with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
+            result = await orchestrator.execute_job(
+                job_id="current_job_123",
+                custom_topic="Python Quiz",
+                publish_immediately=True,
+                slot_index=1
+            )
+
+    assert result["status"] == "PUBLISHED"
+    called_kwargs = mock_yt.publish_short.call_args.kwargs
+    assert "test_unique_hash" not in called_kwargs.get("existing_hashes", [])
+
+
