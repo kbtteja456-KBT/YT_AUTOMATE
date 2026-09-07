@@ -6,13 +6,13 @@
   --bg-surface: #181d28;
   --bg-surface-elevated: #1f2533;
 
-  /* Card Surfaces with 3D Depth - Clean Neutral Dark */
-  --card-bg-gradient: linear-gradient(155deg, rgba(28, 33, 44, 0.8) 0%, rgba(16, 20, 28, 0.94) 100%);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --card-border-highlight: rgba(255, 255, 255, 0.16);
-  --card-shadow-3d: inset 0 1px 1px 0 rgba(255, 255, 255, 0.14),
+  /* Card Surfaces with 3D Glassmorphic Depth */
+  --card-bg-gradient: linear-gradient(155deg, rgba(24, 30, 42, 0.68) 0%, rgba(12, 16, 24, 0.78) 100%);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --card-border-highlight: rgba(255, 255, 255, 0.2);
+  --card-shadow-3d: inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -1px 1px 0 rgba(0, 0, 0, 0.5),
-    0 18px 40px -10px rgba(0, 0, 0, 0.75),
+    0 20px 48px -10px rgba(0, 0, 0, 0.75),
     0 4px 12px -2px rgba(0, 0, 0, 0.5);
 
   /* Inner and Outer Highlights */
@@ -62,22 +62,26 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* Base App Shell Layout - Clean Dark Charcoal */
+/* Base App Shell Layout with Circuit Background */
 .app-container {
   display: flex;
   min-height: 100vh;
-  background:
-    radial-gradient(ellipse 90% 50% at 25% 0%, rgba(245, 158, 11, 0.04) 0%, transparent 60%),
-    radial-gradient(ellipse 70% 40% at 85% 20%, rgba(255, 255, 255, 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(15, 20, 28, 0.6) 0%, transparent 70%),
-    #090c10;
+  background-image:
+    linear-gradient(rgba(10, 14, 20, 0.26), rgba(8, 12, 18, 0.36)),
+    url('/dashboard_bg.jpg');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  background-attachment: fixed;
 }
 
-/* Sidebar */
+/* Sidebar - Frosted Glassmorphism */
 .sidebar {
   width: 250px;
-  background: linear-gradient(180deg, #0d1017 0%, #090c10 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(13, 16, 23, 0.82);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   padding: 24px 16px 20px 16px;
@@ -86,7 +90,7 @@ body {
   height: 100vh;
   z-index: 50;
   flex-shrink: 0;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
 }
 
 .sidebar-brand {
@@ -245,12 +249,13 @@ body {
   height: 100vh;
 }
 
-/* Top Header */
+/* Top Header - Frosted Glassmorphism */
 .top-header {
   height: 70px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(7, 10, 19, 0.85);
-  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 14, 22, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -460,7 +465,7 @@ body {
   margin: 0 auto;
 }
 
-/* Universal 3D Elevated Card */
+/* Universal 3D Elevated Card - Frosted Glassmorphic */
 .card {
   position: relative;
   background: var(--card-bg-gradient);
@@ -468,7 +473,8 @@ body {
   border-top: 1px solid var(--card-border-highlight);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   box-shadow: var(--card-shadow-3d);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -550,7 +556,9 @@ body {
   padding: 24px 28px;
   background:
     radial-gradient(ellipse 60% 80% at 90% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 60%),
-    var(--card-bg-gradient);
+    linear-gradient(155deg, rgba(24, 30, 42, 0.7) 0%, rgba(12, 16, 24, 0.8) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .hero-left-section {
@@ -594,13 +602,15 @@ body {
   align-items: center;
   gap: 10px;
   padding: 6px 14px;
-  background: rgba(8, 12, 22, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(8, 12, 20, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   font-size: 12.5px;
   font-weight: 500;
   color: #cbd5e1;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
 }
 
 .status-badge-published {
