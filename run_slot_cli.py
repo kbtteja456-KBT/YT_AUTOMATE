@@ -394,16 +394,8 @@ async def main():
         slot1_done = is_slot_published_today(1, today_str)
         slot2_done = is_slot_published_today(2, today_str)
 
-        if 7 <= hour < 18:
-            # Morning active window (07:00 - 17:59 IST)
-            if not slot1_done:
-                slot = 1
-                log_run(f"⏰ [CATCH-UP/DUE] Morning Slot 1 (07:00 AM IST) is pending. Launching Slot 1.")
-            else:
-                log_run(f"✅ Morning Slot 1 already published today. Evening Slot 2 will trigger at 18:00 IST. Standing by.")
-                sys.exit(0)
-        elif hour >= 18:
-            # Evening active window (18:00 - 23:59 IST)
+        if (hour == 17 and now_local.minute >= 40) or hour >= 18:
+            # Evening active window (17:40 - 23:59 IST)
             if not slot2_done:
                 slot = 2
                 log_run(f"⏰ [CATCH-UP/DUE] Evening Slot 2 (06:00 PM IST) is pending. Launching Slot 2.")
@@ -415,9 +407,13 @@ async def main():
                 log_run(f"✅ Both Slot 1 and Slot 2 are already published for today ({today_str}). Standing by.")
                 sys.exit(0)
         else:
-            # Pre-morning window (< 07:00 AM IST, e.g. 06:45, 06:55 early runner)
-            slot = 1
-            log_run(f"🕒 Pre-morning window ({now_local.strftime('%H:%M')} IST): Preparing Slot 1.")
+            # Morning active window / Pre-morning (00:00 - 17:39 IST)
+            if not slot1_done:
+                slot = 1
+                log_run(f"⏰ [CATCH-UP/DUE] Morning Slot 1 (07:00 AM IST) is pending. Launching Slot 1.")
+            else:
+                log_run(f"✅ Morning Slot 1 already published today. Evening Slot 2 will trigger at 18:00 IST. Standing by.")
+                sys.exit(0)
 
     slot_title = "Morning Slot 1 (07:00 AM IST)" if slot == 1 else "Evening Slot 2 (06:00 PM IST)"
     print(

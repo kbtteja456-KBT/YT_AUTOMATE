@@ -104,25 +104,53 @@ async def execute_slot_pipeline(slot_index: int, custom_topic: Optional[str] = N
     date_str = datetime.now(tz).strftime("%Y-%m-%d")
     idempotency_key = compute_content_hash(f"autopilot_{date_str}_slot{slot_index}")
 
-    existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})
-    if existing and existing.get("state") == JobState.PUBLISHED.value:
-        return {
-            "status": "ALREADY_PUBLISHED",
-            "youtube_url": existing.get("youtube_url", ""),
-            "youtube_video_id": existing.get("youtube_video_id"),
-        }
-
     if existing:
+        if existing.get("state") == JobState.PUBLISHED.value:
+            return {
+                "status": "ALREADY_PUBLISHED",
+                "youtube_url": existing.get("youtube_url", ""),
+                "youtube_video_id": existing.get("youtube_video_id"),
+            }
+
+        # Concurrency Guard: If another runner (e.g. GitHub Actions cloud runner) is currently active, stand down
+        active_states = [
+            JobState.RUNNING.value,
+            JobState.RESEARCHING.value,
+            JobState.SCRIPTING.value,
+            JobState.STORYBOARDING.value,
+            JobState.GENERATING_MEDIA.value,
+            JobState.GENERATING_VOICE.value,
+            JobState.GENERATING_CAPTIONS.value,
+            JobState.GENERATED.value,
+            JobState.RENDERING.value,
+            JobState.RENDERED.value,
+            JobState.QUALITY_CHECK.value,
+            JobState.QC_PASSED.value,
+            JobState.GENERATING_THUMBNAIL.value,
+            JobState.UPLOADING.value,
+            JobState.PUBLISHING.value,
+        ]
+        job_updated = existing.get("updated_at") or existing.get("created_at") or now
+        if job_updated.tzinfo is None:
+            job_updated = job_updated.replace(tzinfo=timezone.utc)
+        age_seconds = (now - job_updated).total_seconds()
+        if existing.get("state") in active_states and age_seconds < 15 * 60:
+            logger.info(
+                f"🔒 [CONCURRENCY GUARD] Slot {slot_index} is currently ACTIVE in another runner "
+                f"(state='{existing.get('state')}'). Skipping local run to prevent collision."
+            )
+            return {"status": "ALREADY_RUNNING", "job_id": str(existing["_id"])}
+
         job_id = str(existing["_id"])
         db.publishing_jobs.update_one(
             {"_id": existing["_id"]},
-            {"$set": {"state": JobState.CREATED.value, "error_message": None, "updated_at": now}}
+            {"$set": {"state": JobState.RUNNING.value, "error_message": None, "updated_at": now}}
         )
     else:
         doc = {
             "slot_index": slot_index,
             "scheduled_at": now,
-            "state": JobState.CREATED.value,
+            "state": JobState.RUNNING.value,
             "idempotency_key": idempotency_key,
             "topic": custom_topic or "Python Quiz #Shorts",
             "created_at": now,
