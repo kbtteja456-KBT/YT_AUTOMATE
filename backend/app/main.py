@@ -53,7 +53,18 @@ async def lifespan(app: FastAPI):
     logger.info(f"Publishing Schedule: 07:00 & 18:00 ({settings.timezone})")
 
     # Start autonomous daily scheduler
-    start_autopilot_scheduler()
+    # In cloud API hosting (e.g. Render with 512MB RAM), heavy video rendering is offloaded to GitHub Actions (7GB RAM).
+    # The internal scheduler is active for local laptop runs or dedicated workers.
+    import os
+    is_render = os.getenv("RENDER", "").lower() == "true" or os.getenv("IS_RENDER", "").lower() == "true"
+    if is_render or not settings.enable_internal_scheduler:
+        logger.info(
+            "[Cloud API Mode] Running in lightweight API mode (512MB RAM safe). "
+            "Autonomous 07:00 AM & 06:00 PM video rendering is handled by GitHub Actions (7GB RAM)."
+        )
+    else:
+        logger.info("[Autopilot Scheduler] Starting local autonomous daily scheduler...")
+        start_autopilot_scheduler()
 
     yield
     logger.info("Shutting down AI YouTube Shorts Autopilot backend...")

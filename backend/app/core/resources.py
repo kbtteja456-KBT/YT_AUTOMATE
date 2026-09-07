@@ -10,9 +10,9 @@ class ResourceGuard:
 
     def __init__(
         self,
-        min_ram_mb: int = 1500,
-        min_disk_gb: int = 5,
-        max_cpu_percent: float = 90.0
+        min_ram_mb: int = 300,
+        min_disk_gb: int = 1,
+        max_cpu_percent: float = 95.0
     ):
         self.min_ram_mb = min_ram_mb
         self.min_disk_gb = min_disk_gb

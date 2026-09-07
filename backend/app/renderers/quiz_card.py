@@ -367,5 +367,12 @@ class QuizCardRenderer:
         # Save reveal card
         img_r.save(r_path, "PNG")
 
+        # Explicitly release Pillow frame buffers from RAM immediately
+        img_q.close()
+        img_r.close()
+        del img_q, img_r, draw_q, draw_r
+        import gc
+        gc.collect()
+
         logger.info(f"[QuizCardRenderer] Successfully generated {q_path} and {r_path}")
         return q_path, r_path

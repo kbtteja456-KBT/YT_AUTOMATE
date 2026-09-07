@@ -57,6 +57,7 @@ class EditorAgent(BaseAgent):
 
             cmd_seg = [
                 ffmpeg_bin, "-y",
+                "-threads", "2",
                 "-loop", "1",
                 "-i", asset_file,
                 "-t", str(duration),
@@ -74,6 +75,7 @@ class EditorAgent(BaseAgent):
                 # Simple scale fallback
                 cmd_fallback = [
                     ffmpeg_bin, "-y",
+                    "-threads", "2",
                     "-loop", "1",
                     "-i", asset_file,
                     "-t", str(duration),
@@ -110,6 +112,7 @@ class EditorAgent(BaseAgent):
         # Final pass: Merge voiceover audio and burn-in subtitles
         final_cmd = [
             ffmpeg_bin, "-y",
+            "-threads", "2",
             "-i", merged_video_temp,
             "-i", audio_path,
         ]

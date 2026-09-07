@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # Schedule & Location
     timezone: str = Field(default="Asia/Kolkata")
     daily_video_limit: int = Field(default=2)
+    enable_internal_scheduler: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ENABLE_INTERNAL_SCHEDULER", "enable_internal_scheduler")
+    )
 
     # Local Storage Paths
     media_storage_dir: str = Field(default="./media_storage")
