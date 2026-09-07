@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { CircuitStormCanvas } from './components/CircuitStormCanvas';
 import { DashboardPage } from './pages/DashboardPage';
 import { VideosPage } from './pages/VideosPage';
 import { ProvidersPage } from './pages/ProvidersPage';
@@ -130,6 +131,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-container">
+      <CircuitStormCanvas />
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <div className="main-content">
         <Header
