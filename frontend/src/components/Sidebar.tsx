@@ -1,4 +1,12 @@
 import React from 'react';
+import {
+  PlayTileIcon,
+  DashboardIcon,
+  VideosIcon,
+  HealthIcon,
+  StyleIcon,
+  SettingsIcon
+} from './Icons';
 
 interface SidebarProps {
   activeTab: string;
@@ -7,35 +15,62 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '⚡' },
-    { id: 'videos', label: 'Videos Library', icon: '🎬' },
-    { id: 'providers', label: 'Provider Health', icon: '🔌' },
-    { id: 'style', label: 'Style Analyzer', icon: '📐' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon size={18} /> },
+    { id: 'videos', label: 'Videos Library', icon: <VideosIcon size={18} /> },
+    { id: 'providers', label: 'Provider Health', icon: <HealthIcon size={18} /> },
+    { id: 'style', label: 'Style Analyzer', icon: <StyleIcon size={18} /> },
+    { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
   ];
 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <div className="brand-icon">▶</div>
+        <div className="brand-icon-wrapper">
+          <PlayTileIcon size={38} />
+        </div>
         <div className="brand-text">
           <h1>Shorts Autopilot</h1>
-          <span>Zero-Cost AI</span>
+          <span className="brand-badge-zero-cost">Zero-Cost AI</span>
         </div>
       </div>
 
       <nav className="sidebar-nav">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(item.id)}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              className={`nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => setActiveTab(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
       </nav>
+
+      <div className="sidebar-footer">
+        <div className="sidebar-art-container">
+          <img
+            src="/sidebar_glow.jpg"
+            alt="3D Abstract Tech"
+            className="sidebar-art-bg"
+            onError={(e) => {
+              // Graceful fallback if image is not loaded
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
+        </div>
+        <div className="sidebar-motto">
+          Automate<br />
+          Create<br />
+          Grow 🚀
+        </div>
+        <div className="sidebar-pill-badge">
+          ★ Powered by AI
+        </div>
+      </div>
     </aside>
   );
 };

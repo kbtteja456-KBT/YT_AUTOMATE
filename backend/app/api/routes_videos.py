@@ -167,3 +167,56 @@ async def get_job_status(job_id: str) -> dict[str, Any]:
     if not doc:
         raise HTTPException(status_code=404, detail="Job not found")
     return _serialize_doc(doc)
+
+
+@router.delete("/{video_id}")
+async def delete_video(video_id: str) -> dict[str, Any]:
+    """Delete a video from MongoDB database and remove local rendered files."""
+    import os
+    from bson import ObjectId
+
+    db = SyncMongoDB.get_db()
+
+    # Find the video doc by ObjectId or string ID
+    query = {"_id": ObjectId(video_id)} if ObjectId.is_valid(video_id) else {"_id": video_id}
+    doc = db.videos.find_one(query)
+    if not doc:
+        # Fallback check with string id
+        doc = db.videos.find_one({"_id": video_id})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    deleted_files = []
+    # Safely remove rendered video and thumbnail from disk if they exist locally
+    for path_key in ("file_path", "thumbnail_path"):
+        path_val = doc.get(path_key)
+        if path_val and isinstance(path_val, str) and not path_val.startswith("http"):
+            try:
+                abs_p = os.path.abspath(path_val)
+                if os.path.isfile(abs_p):
+                    os.remove(abs_p)
+                    deleted_files.append(abs_p)
+                    logger.info(f"Deleted local video file: {abs_p}")
+            except Exception as fe:
+                logger.warning(f"Could not delete local file {path_val}: {fe}")
+
+    # Delete video record from MongoDB
+    db.videos.delete_one({"_id": doc["_id"]})
+
+    # Clean up linked publishing job if present
+    job_id = doc.get("job_id")
+    if job_id:
+        try:
+            job_query = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+            db.publishing_jobs.delete_one(job_query)
+        except Exception:
+            pass
+
+    logger.info(f"Video {video_id} permanently deleted from database.")
+    return {
+        "status": "DELETED",
+        "video_id": video_id,
+        "title": doc.get("title", ""),
+        "deleted_files": deleted_files
+    }

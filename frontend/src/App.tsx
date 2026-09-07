@@ -79,10 +79,21 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleVideoDeleted = (deletedId: string) => {
+    setVideos((prev) => prev.filter((v) => v.id !== deletedId));
+    loadAllData();
+  };
+
   const renderActivePage = () => {
     switch (activeTab) {
       case 'videos':
-        return <VideosPage videos={videos} onGenerateClick={handleTriggerGenerate} />;
+        return (
+          <VideosPage
+            videos={videos}
+            onGenerateClick={handleTriggerGenerate}
+            onVideoDeleted={handleVideoDeleted}
+          />
+        );
       case 'providers':
         return <ProvidersPage healthData={providersHealth} onRefresh={loadAllData} />;
       case 'style':

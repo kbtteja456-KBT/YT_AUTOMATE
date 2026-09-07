@@ -2,7 +2,14 @@ import React from 'react';
 import { AutopilotHero } from '../components/AutopilotHero';
 import { StatsRow } from '../components/StatsRow';
 import { ActivityFeed } from '../components/ActivityFeed';
-import { AutopilotStatusResponse, ActivityEventItem, VideoItem, ChannelInfo, api } from '../services/api';
+import {
+  AutopilotStatusResponse,
+  ActivityEventItem,
+  VideoItem,
+  ChannelInfo,
+  api
+} from '../services/api';
+import { YouTubeRedTileIcon, CheckCircleIcon, SyncIcon, ChevronDownIcon, PlayIcon } from '../components/Icons';
 
 interface DashboardPageProps {
   autopilotStatus: AutopilotStatusResponse | null;
@@ -27,6 +34,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [syncNotice, setSyncNotice] = React.useState<string | null>(null);
 
   const channel = channelInfo?.is_connected ? channelInfo.channel : null;
+  const channelName = channel?.title || 'Bhanu Teja';
+  const channelHandle = channel?.custom_url || '@bhanuteja-8';
+  const channelId = channel?.channel_id || 'UCBQkctpyUEzsCmEbeJ8RQ';
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -54,148 +64,88 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="page-body">
-      {channel ? (
-        <div className="card" style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%)',
-          border: '1px solid rgba(16, 185, 129, 0.25)',
-          padding: '14px 20px',
-          borderRadius: 'var(--radius-md)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              {channel.thumbnail_url ? (
-                <img
-                  src={channel.thumbnail_url}
-                  alt={channel.title}
-                  style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '50%',
-                    border: '2px solid var(--accent-mint)',
-                    boxShadow: '0 0 12px rgba(16, 185, 129, 0.3)'
-                  }}
-                />
-              ) : (
-                <div style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  background: 'var(--accent-mint)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px',
-                  fontWeight: 700,
-                  color: '#0f172a'
-                }}>
-                  {channel.title.charAt(0)}
-                </div>
-              )}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '16px', fontWeight: 700, color: '#f3f4f6' }}>{channel.title}</span>
-                  {channel.custom_url && (
-                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{channel.custom_url}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  Channel ID: <code style={{ color: 'var(--text-muted)' }}>{channel.channel_id}</code>
-                </div>
-              </div>
+      {/* 1. YouTube Connection Banner Card */}
+      <div className="card yt-connected-card">
+        <div className="yt-card-left">
+          <YouTubeRedTileIcon size={44} />
+          <div>
+            <div className="yt-card-title-row">
+              <span className="yt-channel-name">{channelName}</span>
+              <span className="yt-channel-handle">{channelHandle}</span>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: 600,
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: 'var(--accent-mint)',
-                border: '1px solid rgba(16, 185, 129, 0.3)'
-              }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-mint)' }} />
-                YouTube Connected
-              </span>
-
-              <button
-                className="btn btn-secondary"
-                onClick={handleSync}
-                disabled={isSyncing}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: '13px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  cursor: isSyncing ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {isSyncing ? '↻ Syncing with YouTube...' : '↻ Sync Stats'}
-              </button>
+            <div className="yt-channel-id">
+              Channel ID: <code>{channelId}</code>
             </div>
           </div>
-
-          {syncNotice && (
-            <div style={{
-              fontSize: '12px',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              background: syncNotice.includes('Authorization') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#93c5fd'
-            }}>
-              ℹ️ {syncNotice}
-            </div>
-          )}
         </div>
-      ) : (
-        <div className="card" style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: 'rgba(239, 68, 68, 0.05)',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          padding: '12px 18px'
+
+        <div className="yt-card-right">
+          <span className="yt-connected-badge">
+            <CheckCircleIcon size={13} color="#10b981" />
+            YouTube Connected
+          </span>
+
+          <button
+            className="btn btn-secondary yt-sync-btn"
+            onClick={handleSync}
+            disabled={isSyncing}
+          >
+            <SyncIcon size={13} />
+            <span>{isSyncing ? 'Syncing...' : 'Sync Stats'}</span>
+            <ChevronDownIcon size={11} color="#94a3b8" />
+          </button>
+        </div>
+      </div>
+
+      {syncNotice && (
+        <div style={{
+          fontSize: '12.5px',
+          padding: '8px 14px',
+          borderRadius: '10px',
+          background: syncNotice.includes('Authorization') ? 'rgba(59, 130, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          color: '#93c5fd'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span>⚠️</span>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              YouTube Channel Not Connected.
-            </span>
-          </div>
+          ℹ️ {syncNotice}
         </div>
       )}
 
+      {/* 2. Autonomous Daily Publishing Hero Card */}
       <AutopilotHero status={autopilotStatus} onToggle={onToggleAutopilot} />
 
+      {/* 3. Metric Cards Row */}
       <StatsRow
         videosCount={videos.length}
-        subscribers={channel ? channel.subscriber_count : 'NOT AVAILABLE'}
-        totalViews={channel ? channel.view_count : 'NOT AVAILABLE'}
-        channelTitle={channel ? channel.title : undefined}
+        subscribers={channel?.subscriber_count}
+        totalViews={channel?.view_count}
+        channelTitle={channel?.title}
       />
 
-      <div className="two-col-grid">
+      {/* 4. Live Pipeline Activity & Quick Action Row */}
+      <div className="bottom-dashboard-grid">
         <ActivityFeed events={activityEvents} />
 
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="stat-header">
-            <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Quick Action
-            </span>
-            <span>⚡</span>
+        <div className="card quick-action-card">
+          <div>
+            <div className="quick-action-header">
+              <div className="quick-action-tile">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#ffffff">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+              </div>
+              <h3 className="quick-action-title">Quick Action</h3>
+            </div>
+            <p className="quick-action-desc" style={{ marginTop: '12px' }}>
+              Manually trigger the full autopilot pipeline now. Researches, scripts, synthesizes voice, transcribes, renders 1080x1920 MP4 via FFmpeg, and verifies QC gate (&gt;=90/100).
+            </p>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.5 }}>
-            Manually trigger the full autopilot pipeline now. Researches, scripts, synthesizes voice, transcribes, renders 1080x1920 MP4 via FFmpeg, and verifies QC gate (&gt;=90/100).
-          </p>
-          <button className="btn btn-primary" onClick={onGenerateClick} style={{ marginTop: 'auto' }}>
-            + Create & Render Short Now
+
+          <button
+            className="btn btn-primary quick-action-btn"
+            onClick={onGenerateClick}
+          >
+            <PlayIcon size={16} />
+            <span>+ Create &amp; Render Short Now</span>
           </button>
         </div>
       </div>

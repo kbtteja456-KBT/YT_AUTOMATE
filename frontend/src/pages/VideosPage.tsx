@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { VideoItem, resolveMediaUrl } from '../services/api';
+import { VideoItem, resolveMediaUrl, api } from '../services/api';
+import { TrashIcon } from '../components/Icons';
 
 interface VideosPageProps {
   videos: VideoItem[];
   onGenerateClick: () => void;
+  onVideoDeleted?: (id: string) => void;
 }
 
-export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick }) => {
+export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick, onVideoDeleted }) => {
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteVideo, setConfirmDeleteVideo] = useState<VideoItem | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   const getThumbnailSrc = (video: VideoItem) => {
     if (video.youtube_video_id) {
@@ -28,13 +33,33 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
     return resolveMediaUrl('/media/rendered/short_rendered.mp4');
   };
 
+  const handleDeleteVideo = async (video: VideoItem) => {
+    setDeletingId(video.id);
+    try {
+      await api.deleteVideo(video.id);
+      if (selectedVideo?.id === video.id) {
+        setSelectedVideo(null);
+      }
+      setConfirmDeleteVideo(null);
+      if (onVideoDeleted) {
+        onVideoDeleted(video.id);
+      }
+      setFeedbackMessage(`Deleted "${video.title || 'Video'}" from database and storage.`);
+      setTimeout(() => setFeedbackMessage(null), 4000);
+    } catch (err: any) {
+      alert(`Failed to delete video: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="page-body">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px' }}>Rendered & Published Videos</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
-            Real 1080x1920 MP4 assets produced by the local FFmpeg rendering engine.
+            Manage rendered 1080x1920 MP4 assets, quality check audits, and published Shorts.
           </p>
         </div>
         <button className="btn btn-primary" onClick={onGenerateClick}>
@@ -42,12 +67,38 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
         </button>
       </div>
 
+      {feedbackMessage && (
+        <div
+          style={{
+            padding: '12px 18px',
+            borderRadius: '10px',
+            background: 'rgba(16, 185, 129, 0.15)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            color: '#34d399',
+            fontSize: '13px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            animation: 'fadeIn 0.25s ease'
+          }}
+        >
+          <span>✅ {feedbackMessage}</span>
+          <button
+            onClick={() => setFeedbackMessage(null)}
+            style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: '14px' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {videos.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>🎬</div>
-          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>No Videos Rendered Yet</h3>
+          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>No Videos in Library</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', maxWidth: '440px', margin: '0 auto 20px auto' }}>
-            Videos are rendered autonomously during pre-generation windows (01:00-06:30 & 12:00-17:30) or upon manual trigger.
+            Videos are rendered autonomously during pre-generation windows or upon manual trigger.
           </p>
           <button className="btn btn-primary" onClick={onGenerateClick}>
             Trigger First Video Run
@@ -96,6 +147,17 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
                   ▶
                 </div>
                 <div className="video-qc-badge">QC: {video.quality_score.toFixed(0)}/100</div>
+                <button
+                  type="button"
+                  className="btn-delete-card"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDeleteVideo(video);
+                  }}
+                  title="Delete video from library and database"
+                >
+                  <TrashIcon size={15} color="currentColor" />
+                </button>
                 <div className="video-duration-badge">{video.duration_seconds.toFixed(0)}s</div>
               </div>
               <div className="video-info">
@@ -113,6 +175,106 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Confirmation Modal for Delete */}
+      {confirmDeleteVideo && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1200,
+            padding: '20px'
+          }}
+          onClick={() => !deletingId && setConfirmDeleteVideo(null)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '440px',
+              width: '100%',
+              background: '#0f172a',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '16px',
+              padding: '24px',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
+              animation: 'scaleIn 0.2s ease'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0
+                }}
+              >
+                <TrashIcon size={22} color="#ef4444" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#f3f4f6' }}>
+                  Delete Video?
+                </h3>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Permanent database & file deletion
+                </span>
+              </div>
+            </div>
+
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', lineHeight: 1.55, marginBottom: '22px' }}>
+              Are you sure you want to delete <strong style={{ color: '#fff' }}>"{confirmDeleteVideo.title}"</strong>?
+              This will permanently remove the record from MongoDB Atlas and clean up rendered media files.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmDeleteVideo(null)}
+                disabled={!!deletingId}
+                style={{ padding: '8px 18px', fontSize: '13px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => handleDeleteVideo(confirmDeleteVideo)}
+                disabled={!!deletingId}
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  padding: '8px 20px',
+                  fontSize: '13px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: deletingId ? 'wait' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
+                }}
+              >
+                <TrashIcon size={15} color="#ffffff" />
+                {deletingId === confirmDeleteVideo.id ? 'Deleting...' : 'Delete Video'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -135,7 +297,7 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
           <div
             className="card"
             style={{
-              maxWidth: '520px',
+              maxWidth: '540px',
               width: '100%',
               background: '#0f172a',
               border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -200,7 +362,7 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
               {selectedVideo.description}
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-mint)', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
                   QC {selectedVideo.quality_score.toFixed(0)}/100
@@ -215,7 +377,28 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setConfirmDeleteVideo(selectedVideo)}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    color: '#f87171',
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderRadius: '8px',
+                    cursor: 'pointer'
+                  }}
+                  title="Delete video from database"
+                >
+                  <TrashIcon size={14} color="#f87171" />
+                  Delete
+                </button>
                 {selectedVideo.youtube_url && (
                   <a
                     href={selectedVideo.youtube_url}
@@ -235,7 +418,7 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick 
                       borderRadius: '8px'
                     }}
                   >
-                    ▶ Watch on YouTube Shorts
+                    ▶ Watch on Shorts
                   </a>
                 )}
                 <a

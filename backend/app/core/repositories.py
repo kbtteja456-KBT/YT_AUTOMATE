@@ -172,6 +172,12 @@ class VideoRepository:
             videos.append(Video.model_validate(doc))
         return videos
 
+    async def delete_video(self, video_id: str) -> bool:
+        """Delete video record by id."""
+        query = {"_id": ObjectId(video_id) if ObjectId.is_valid(video_id) else video_id}
+        res = await self._maybe_await(self.collection.delete_one(query))
+        return getattr(res, "deleted_count", 0) > 0
+
 
 class SettingsRepository:
     """Manages channel and autopilot settings document."""

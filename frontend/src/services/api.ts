@@ -151,6 +151,17 @@ export const api = {
     return res.json();
   },
 
+  async deleteVideo(videoId: string): Promise<{ status: string; video_id: string; title?: string }> {
+    const res = await fetch(`${API_BASE}/videos/${videoId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to delete video' }));
+      throw new Error(err.detail || 'Failed to delete video');
+    }
+    return res.json();
+  },
+
   async triggerGenerate(topic?: string, duration: number = 45): Promise<{ job_id: string; message: string }> {
     const res = await fetch(`${API_BASE}/videos/generate`, {
       method: 'POST',

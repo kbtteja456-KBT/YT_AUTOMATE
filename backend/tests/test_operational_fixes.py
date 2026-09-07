@@ -641,4 +641,79 @@ async def test_orchestrator_immediate_regeneration_on_duplicate():
     assert mock_idea.generate_daily_topic.call_count == 2
 
 
+@pytest.mark.anyio
+async def test_video_repository_delete_video():
+    """Verify VideoRepository delete_video removes document by ID."""
+    import mongomock
+    mock_db = mongomock.MongoClient()["youtube_autopilot"]
+    from backend.app.core.repositories import VideoRepository
+    from backend.app.models.video import Video
+
+    repo = VideoRepository(mock_db)
+    vid = Video(
+        title="Test Delete Video",
+        description="Test description",
+        duration_seconds=30.0
+    )
+    created = await repo.create_video(vid)
+    assert created.id is not None
+
+    # Verify exists
+    found = await repo.get_video_by_id(created.id)
+    assert found is not None
+
+    # Delete video
+    deleted = await repo.delete_video(created.id)
+    assert deleted is True
+
+    # Verify gone
+    found_after = await repo.get_video_by_id(created.id)
+    assert found_after is None
+
+
+@pytest.mark.anyio
+async def test_delete_video_endpoint_removes_from_db_and_cleans_files(tmp_path):
+    """Verify DELETE /api/videos/{video_id} deletes document from MongoDB and removes files."""
+    import mongomock
+    mock_db = mongomock.MongoClient()["youtube_autopilot"]
+    from backend.app.api.routes_videos import delete_video
+    from bson import ObjectId
+
+    # Create dummy local files
+    dummy_video_file = tmp_path / "rendered_test.mp4"
+    dummy_video_file.write_text("fake video bytes")
+    dummy_thumb_file = tmp_path / "thumb_test.jpg"
+    dummy_thumb_file.write_text("fake thumb bytes")
+
+    # Insert test video into mock db
+    vid_id = str(ObjectId())
+    job_id = "test_job_123"
+    mock_db.videos.insert_one({
+        "_id": ObjectId(vid_id),
+        "job_id": job_id,
+        "title": "Unwanted Video To Delete",
+        "file_path": str(dummy_video_file),
+        "thumbnail_path": str(dummy_thumb_file),
+    })
+    mock_db.publishing_jobs.insert_one({
+        "_id": job_id,
+        "topic": "Unwanted Video Topic"
+    })
+
+    with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
+        res = await delete_video(video_id=vid_id)
+
+    assert res["status"] == "DELETED"
+    assert res["video_id"] == vid_id
+    assert res["title"] == "Unwanted Video To Delete"
+
+    # Verify removed from database
+    assert mock_db.videos.find_one({"_id": ObjectId(vid_id)}) is None
+    assert mock_db.publishing_jobs.find_one({"_id": job_id}) is None
+
+    # Verify files deleted from disk
+    assert not os.path.exists(str(dummy_video_file))
+    assert not os.path.exists(str(dummy_thumb_file))
+
+
 
