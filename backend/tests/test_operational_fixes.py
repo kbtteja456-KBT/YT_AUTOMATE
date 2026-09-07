@@ -538,3 +538,107 @@ async def test_orchestrator_duplicate_hash_query_excludes_current_job():
     assert "test_unique_hash" not in called_kwargs.get("existing_hashes", [])
 
 
+@pytest.mark.anyio
+async def test_orchestrator_immediate_regeneration_on_duplicate():
+    """Verify orchestrator immediately regenerates a new video and publishes if a duplicate is detected."""
+    import mongomock
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from backend.app.pipeline.orchestrator import PipelineOrchestrator
+    from backend.app.models.video import Script, Storyboard, QCReport
+    from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
+    from backend.app.core.errors import DuplicateUploadPreventedError
+
+    mock_db = mongomock.MongoClient()["youtube_autopilot"]
+
+    mock_idea = AsyncMock()
+    # First call returns topic A (which will be duplicate), second call returns topic B (fresh)
+    mock_idea.generate_daily_topic.side_effect = [
+        {"topic": "Duplicate Topic A"},
+        {"topic": "Fresh Topic B"}
+    ]
+
+    mock_research = AsyncMock()
+    mock_research.conduct_research.return_value = MagicMock(key_takeaway="takeaway")
+    mock_fact = AsyncMock()
+    mock_fact.verify_and_prune.return_value = MagicMock(key_takeaway="takeaway")
+    mock_hook = AsyncMock()
+    mock_hook.generate_and_score_hooks.return_value = [MagicMock(text="Hook", selected=True)]
+    mock_script = AsyncMock()
+    mock_script.generate_script.return_value = MagicMock(spec=Script, topic="Quiz", target_duration_sec=30.0)
+    mock_storyboard = AsyncMock()
+    storyboard_obj = MagicMock(spec=Storyboard, scenes=[])
+    mock_storyboard.create_storyboard.return_value = storyboard_obj
+    mock_media = AsyncMock()
+    mock_media.collect_scene_assets.return_value = storyboard_obj
+    mock_voice = AsyncMock()
+    mock_voice.generate_voiceover.return_value = "dummy_audio.mp3"
+    mock_voice.last_music_attribution = None
+    mock_caption = AsyncMock()
+    mock_caption.generate_captions.return_value = ("dummy.ass", [])
+    mock_editor = AsyncMock()
+    mock_editor.render_video.return_value = "dummy_video.mp4"
+    mock_qc = AsyncMock()
+    mock_qc.audit_video.return_value = QCReport(score=95.0, passed=True, details={"metadata": {"duration": 30.0}})
+    mock_thumb = AsyncMock()
+    mock_thumb.generate_custom_thumbnail.return_value = ThumbnailCard(
+        file_path="dummy_thumb.png",
+        file_hash="thash",
+        spec=ThumbnailSpec(source_frame_timestamp=0.0, overlay_text="")
+    )
+    mock_title = AsyncMock()
+    mock_title.generate_title_and_tags.return_value = {
+        "title": "Fresh Python Quiz #Shorts",
+        "tags": ["python"],
+        "hashtags": ["#python"]
+    }
+    mock_desc = AsyncMock()
+    mock_desc.generate_description.return_value = "Fresh Quiz description #Shorts"
+
+    mock_yt = AsyncMock()
+    # First publish attempt raises DuplicateUploadPreventedError!
+    # Second publish attempt succeeds!
+    mock_yt.publish_short.side_effect = [
+        DuplicateUploadPreventedError("Video with hash duplicate_hash was already published. Duplicate upload blocked."),
+        {
+            "youtube_video_id": "yt_fresh_777",
+            "youtube_url": "https://www.youtube.com/shorts/yt_fresh_777",
+            "file_hash": "fresh_hash_999",
+            "status": "PUBLISHED"
+        }
+    ]
+
+    orchestrator = PipelineOrchestrator(
+        idea_agent=mock_idea,
+        research_agent=mock_research,
+        fact_check_agent=mock_fact,
+        hook_agent=mock_hook,
+        script_agent=mock_script,
+        storyboard_agent=mock_storyboard,
+        media_agent=mock_media,
+        voice_agent=mock_voice,
+        caption_agent=mock_caption,
+        editor_agent=mock_editor,
+        qc_agent=mock_qc,
+        thumbnail_agent=mock_thumb,
+        title_agent=mock_title,
+        description_agent=mock_desc,
+        youtube_agent=mock_yt,
+    )
+
+    with patch("backend.app.pipeline.orchestrator.compute_file_hash", return_value="hash_attempt"):
+        with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
+            result = await orchestrator.execute_job(
+                job_id="retry_job_456",
+                publish_immediately=True,
+                slot_index=1
+            )
+
+    # Hard assert: It did NOT fail, it regenerated and published the fresh video!
+    assert result["status"] == "PUBLISHED"
+    assert result["youtube_video_id"] == "yt_fresh_777"
+    assert result["youtube_url"] == "https://www.youtube.com/shorts/yt_fresh_777"
+    assert mock_yt.publish_short.call_count == 2
+    assert mock_idea.generate_daily_topic.call_count == 2
+
+
+
