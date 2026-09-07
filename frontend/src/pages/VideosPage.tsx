@@ -166,10 +166,10 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick,
                   {video.youtube_video_id ? (
                     <span style={{ color: 'var(--accent-mint)' }}>Published to YouTube</span>
                   ) : (
-                    <span style={{ color: 'var(--accent-cyan)' }}>Rendered & QC Passed (Ready)</span>
+                    <span style={{ color: 'var(--accent-gold)' }}>Rendered & QC Passed (Ready)</span>
                   )}
                   {video.views !== undefined && video.views > 0 && (
-                    <span style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 600 }}>👁️ {video.views.toLocaleString()} views</span>
+                    <span style={{ color: 'var(--accent-gold)', fontSize: '12px', fontWeight: 600 }}>👁️ {video.views.toLocaleString()} views</span>
                   )}
                 </div>
               </div>
@@ -367,11 +367,11 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick,
                 <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-mint)', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
                   QC {selectedVideo.quality_score.toFixed(0)}/100
                 </span>
-                <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#a5b4fc', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
+                <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.08)', color: 'var(--accent-titanium)', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
                   {selectedVideo.duration_seconds.toFixed(0)}s Short
                 </span>
                 {selectedVideo.views !== undefined && (
-                  <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#93c5fd', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
+                  <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent-gold)', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>
                     👁️ {selectedVideo.views.toLocaleString()} views
                   </span>
                 )}

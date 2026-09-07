@@ -1,5 +1,5 @@
 import React from 'react';
-import { SparklineBlue, SparklineGreen } from './Icons';
+import { SparklineAmber, SparklineGreen } from './Icons';
 
 interface StatsRowProps {
   videosCount: number;
@@ -36,13 +36,20 @@ export const StatsRow: React.FC<StatsRowProps> = ({
       {/* 1. YouTube Subscribers */}
       <div className="card stat-card-3d">
         <div className="stat-header-row">
-          <div className="stat-tile-icon tile-blue">
+          <div className="stat-tile-icon tile-amber">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
           </div>
-          <span className="stat-top-badge-icon">👥</span>
+          <span className="stat-top-badge-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </span>
         </div>
 
         <div className="stat-card-label">YouTube Subscribers</div>
@@ -53,7 +60,7 @@ export const StatsRow: React.FC<StatsRowProps> = ({
         </div>
 
         <div style={{ margin: '4px 0 -4px 0' }}>
-          <SparklineBlue width={120} height={32} />
+          <SparklineAmber width={120} height={32} />
         </div>
 
         <div className="stat-footer-text">
@@ -70,7 +77,12 @@ export const StatsRow: React.FC<StatsRowProps> = ({
               <circle cx="12" cy="12" r="3" />
             </svg>
           </div>
-          <span className="stat-top-badge-icon">👁️</span>
+          <span className="stat-top-badge-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </span>
         </div>
 
         <div className="stat-card-label">Total Views</div>
@@ -90,7 +102,7 @@ export const StatsRow: React.FC<StatsRowProps> = ({
       {/* 3. Rendered Videos */}
       <div className="card stat-card-3d">
         <div className="stat-header-row">
-          <div className="stat-tile-icon tile-purple">
+          <div className="stat-tile-icon tile-emerald">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect width="18" height="18" x="3" y="3" rx="3" />
               <path d="M3 9h18" />
@@ -98,7 +110,12 @@ export const StatsRow: React.FC<StatsRowProps> = ({
               <path d="m15 3 2 6" />
             </svg>
           </div>
-          <span className="stat-top-badge-icon">🗄️</span>
+          <span className="stat-top-badge-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="18" height="14" x="3" y="5" rx="2" />
+              <polyline points="3 10 12 10 21 10" />
+            </svg>
+          </span>
         </div>
 
         <div className="stat-card-label">Rendered Videos</div>
@@ -114,7 +131,7 @@ export const StatsRow: React.FC<StatsRowProps> = ({
 
         <div className="stat-progress-container">
           <div
-            className="stat-progress-fill-purple"
+            className="stat-progress-fill-emerald"
             style={{ width: `${videosCount > 0 ? renderSuccessRate : 78}%` }}
           />
         </div>
@@ -130,7 +147,11 @@ export const StatsRow: React.FC<StatsRowProps> = ({
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
           </div>
-          <span className="stat-top-badge-icon">🛡️</span>
+          <span className="stat-top-badge-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </span>
         </div>
 
         <div className="stat-card-label">Average QC Score</div>

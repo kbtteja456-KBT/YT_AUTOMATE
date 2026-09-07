@@ -1,6 +1,6 @@
 import React from 'react';
 import { AutopilotStatusResponse } from '../services/api';
-import { CalendarBlueTileIcon, CheckCircleIcon, ClockIcon, PauseIcon, PlayIcon } from './Icons';
+import { CalendarAmberTileIcon, CheckCircleIcon, ClockIcon, PauseIcon, PlayIcon } from './Icons';
 
 interface AutopilotHeroProps {
   status: AutopilotStatusResponse | null;
@@ -29,7 +29,7 @@ export const AutopilotHero: React.FC<AutopilotHeroProps> = ({ status, onToggle }
     }
     return (
       <span className="status-badge-scheduled">
-        <ClockIcon size={12} color="#60a5fa" />
+        <ClockIcon size={12} color="#f59e0b" />
         {statusStr === 'PENDING' ? 'Scheduled' : statusStr}
       </span>
     );
@@ -39,7 +39,7 @@ export const AutopilotHero: React.FC<AutopilotHeroProps> = ({ status, onToggle }
     <div className="card autopilot-hero-3d">
       <div className="hero-left-section">
         <div style={{ flexShrink: 0 }}>
-          <CalendarBlueTileIcon size={48} />
+          <CalendarAmberTileIcon size={48} />
         </div>
         <div className="hero-content-col">
           <h2>Autonomous Daily Publishing</h2>
@@ -61,36 +61,35 @@ export const AutopilotHero: React.FC<AutopilotHeroProps> = ({ status, onToggle }
       </div>
 
       <div className="hero-right-section">
-        <div className="robot-mascot-wrapper">
-          <div className="robot-speech-bubble">
-            Creating Better Shorts Everyday!
+        <div className="robot-column">
+          <div className="robot-mascot-wrapper">
+            <div className="robot-speech-bubble">
+              Creating Better Shorts Everyday!
+            </div>
+            <img
+              src="/mascot.jpg"
+              alt="Shorts Autopilot Mascot"
+              className="robot-mascot-img"
+            />
           </div>
-          <img
-            src="/mascot.jpg"
-            alt="Shorts Autopilot Mascot"
-            className="robot-mascot-img"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
-        </div>
 
-        <button
-          className={`btn hero-pause-btn ${isEnabled ? 'btn-danger' : 'btn-primary'}`}
-          onClick={onToggle}
-        >
-          {isEnabled ? (
-            <>
-              <PauseIcon size={15} />
-              <span>Pause Autopilot</span>
-            </>
-          ) : (
-            <>
-              <PlayIcon size={15} />
-              <span>Resume Autopilot</span>
-            </>
-          )}
-        </button>
+          <button
+            className={`btn hero-pause-btn ${isEnabled ? 'btn-danger' : 'btn-primary'}`}
+            onClick={onToggle}
+          >
+            {isEnabled ? (
+              <>
+                <PauseIcon size={15} />
+                <span>Pause Autopilot</span>
+              </>
+            ) : (
+              <>
+                <PlayIcon size={15} />
+                <span>Resume Autopilot</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

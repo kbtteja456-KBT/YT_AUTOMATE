@@ -11,12 +11,12 @@ export const PlayTileIcon: React.FC<{ size?: number }> = ({ size = 36 }) => (
   <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#38bdf8" />
-        <stop offset="0.6" stopColor="#2563eb" />
-        <stop offset="1" stopColor="#1d4ed8" />
+        <stop stopColor="#fbbf24" />
+        <stop offset="0.6" stopColor="#f59e0b" />
+        <stop offset="1" stopColor="#d97706" />
       </linearGradient>
       <filter id="logoShadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#0284c7" floodOpacity="0.45" />
+        <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#d97706" floodOpacity="0.45" />
       </filter>
     </defs>
     <rect x="2" y="2" width="36" height="36" rx="11" fill="url(#logoGrad)" filter="url(#logoShadow)" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
@@ -40,25 +40,27 @@ export const YouTubeRedTileIcon: React.FC<{ size?: number }> = ({ size = 42 }) =
   </svg>
 );
 
-export const CalendarBlueTileIcon: React.FC<{ size?: number }> = ({ size = 48 }) => (
+export const CalendarAmberTileIcon: React.FC<{ size?: number }> = ({ size = 48 }) => (
   <svg width={size} height={size} viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="calGrad" x1="0" y1="0" x2="52" y2="52" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#60a5fa" />
-        <stop offset="0.6" stopColor="#3b82f6" />
-        <stop offset="1" stopColor="#1e40af" />
+        <stop stopColor="#fbbf24" />
+        <stop offset="0.6" stopColor="#f59e0b" />
+        <stop offset="1" stopColor="#d97706" />
       </linearGradient>
       <filter id="calShadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#2563eb" floodOpacity="0.4" />
+        <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#d97706" floodOpacity="0.4" />
       </filter>
     </defs>
     <rect x="3" y="3" width="46" height="46" rx="14" fill="url(#calGrad)" filter="url(#calShadow)" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" />
     <rect x="12" y="10" width="28" height="5" rx="2" fill="rgba(255,255,255,0.8)" />
-    <circle cx="18" cy="9" r="2" fill="#1e3a8a" />
-    <circle cx="34" cy="9" r="2" fill="#1e3a8a" />
+    <circle cx="18" cy="9" r="2" fill="#78350f" />
+    <circle cx="34" cy="9" r="2" fill="#78350f" />
     <path d="M22 23L33 29.5L22 36V23Z" fill="white" />
   </svg>
 );
+
+export const CalendarBlueTileIcon = CalendarAmberTileIcon;
 
 export const DashboardIcon: React.FC<IconProps> = ({ size = 18, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -103,7 +105,7 @@ export const CheckCircleIcon: React.FC<IconProps> = ({ size = 14, color = '#10b9
   </svg>
 );
 
-export const ClockIcon: React.FC<IconProps> = ({ size = 14, color = '#60a5fa' }) => (
+export const ClockIcon: React.FC<IconProps> = ({ size = 14, color = '#f59e0b' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" />
     <polyline points="12 6 12 12 16 14" />
@@ -135,26 +137,28 @@ export const PlayIcon: React.FC<IconProps> = ({ size = 16, color = 'currentColor
   </svg>
 );
 
-export const SparklineBlue: React.FC<{ width?: number; height?: number }> = ({ width = 110, height = 36 }) => (
+export const SparklineAmber: React.FC<{ width?: number; height?: number }> = ({ width = 110, height = 36 }) => (
   <svg width={width} height={height} viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="blueSparkGrad" x1="0" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#38bdf8" stopOpacity="0.4" />
-        <stop offset="1" stopColor="#38bdf8" stopOpacity="0" />
+      <linearGradient id="amberSparkGrad" x1="0" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#f59e0b" stopOpacity="0.4" />
+        <stop offset="1" stopColor="#f59e0b" stopOpacity="0" />
       </linearGradient>
     </defs>
     <path
       d="M0 32 C 25 32, 35 30, 50 25 C 65 20, 75 14, 90 20 C 105 26, 110 8, 120 4"
-      stroke="#38bdf8"
+      stroke="#f59e0b"
       strokeWidth="2.5"
       strokeLinecap="round"
     />
     <path
       d="M0 32 C 25 32, 35 30, 50 25 C 65 20, 75 14, 90 20 C 105 26, 110 8, 120 4 V 40 H 0 Z"
-      fill="url(#blueSparkGrad)"
+      fill="url(#amberSparkGrad)"
     />
   </svg>
 );
+
+export const SparklineBlue = SparklineAmber;
 
 export const SparklineGreen: React.FC<{ width?: number; height?: number }> = ({ width = 110, height = 36 }) => (
   <svg width={width} height={height} viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">

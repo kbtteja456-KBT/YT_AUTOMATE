@@ -45,7 +45,7 @@ export const StylePage: React.FC = () => {
         </p>
       </div>
 
-      <div className="card" style={{ borderLeft: '4px solid var(--accent-purple)' }}>
+      <div className="card" style={{ borderLeft: '4px solid var(--accent-gold)' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>Strict Pacing Extraction Only</h3>
         <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5 }}>
           The analyzer extracts pacing ratios, cut frequency, and caption typography. Never reuses face, voice, footage, or script from the reference video.

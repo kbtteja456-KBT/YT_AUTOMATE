@@ -102,9 +102,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           fontSize: '12.5px',
           padding: '8px 14px',
           borderRadius: '10px',
-          background: syncNotice.includes('Authorization') ? 'rgba(59, 130, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          color: '#93c5fd'
+          background: syncNotice.includes('Authorization') ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+          border: syncNotice.includes('Authorization') ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+          color: syncNotice.includes('Authorization') ? 'var(--accent-gold)' : 'var(--accent-mint)'
         }}>
           ℹ️ {syncNotice}
         </div>

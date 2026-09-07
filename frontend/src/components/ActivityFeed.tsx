@@ -108,7 +108,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           <h3 className="pipeline-title">Live Pipeline Activity</h3>
         </div>
         <div className="live-stream-badge">
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#06b6d4', display: 'inline-block' }} />
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
           Live Stream
         </div>
       </div>
