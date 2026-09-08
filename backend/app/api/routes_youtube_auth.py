@@ -135,9 +135,14 @@ async def handle_youtube_callback(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _perform_youtube_sync(channel_id: str, db: Any) -> Optional[dict[str, Any]]:
-    """Internal helper to refresh token, query YouTube API, and persist updated statistics."""
-    token_doc = await db.oauth_tokens.find_one({"channel_id": channel_id})
+async def _perform_youtube_sync(channel_id: str, db: Any, workspace_id: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Internal helper to refresh token, query YouTube API, and persist updated statistics for a specific channel and workspace."""
+    token_query: dict[str, Any] = {"channel_id": channel_id}
+    if workspace_id:
+        token_query["workspace_id"] = workspace_id
+    token_doc = await db.oauth_tokens.find_one(token_query)
+    if not token_doc:
+        token_doc = await db.oauth_tokens.find_one({"channel_id": channel_id})
     if not token_doc:
         return None
 
@@ -146,8 +151,24 @@ async def _perform_youtube_sync(channel_id: str, db: Any) -> Optional[dict[str, 
     profile = await GoogleOAuthManager.fetch_channel_profile(tokens["access_token"])
     now = datetime.now(timezone.utc)
 
-    # Query real-time statistics from all published videos (bypasses YouTube 24-48h channel viewCount cache delay)
-    video_docs = await db.videos.find({"youtube_video_id": {"$exists": True, "$ne": None}}).to_list(length=100)
+    # Query real-time statistics strictly scoped to this workspace / channel (bypasses YouTube 24-48h channel viewCount cache delay)
+    target_ws_id = workspace_id or token_doc.get("workspace_id")
+    if not target_ws_id:
+        chan_rec = await db.youtube_channels.find_one({"channel_id": channel_id})
+        if chan_rec:
+            target_ws_id = chan_rec.get("workspace_id")
+
+    if target_ws_id:
+        video_docs = await db.videos.find({
+            "workspace_id": target_ws_id,
+            "youtube_video_id": {"$exists": True, "$ne": None}
+        }).to_list(length=100)
+    else:
+        video_docs = await db.videos.find({
+            "channel_id": channel_id,
+            "youtube_video_id": {"$exists": True, "$ne": None}
+        }).to_list(length=100)
+
     video_ids = [v["youtube_video_id"] for v in video_docs if v.get("youtube_video_id")]
 
     total_video_views = 0
@@ -180,12 +201,18 @@ async def _perform_youtube_sync(channel_id: str, db: Any) -> Optional[dict[str, 
         "last_synced_at": now
     }
 
+    chan_query: dict[str, Any] = {"channel_id": channel_id}
+    if target_ws_id:
+        chan_query["workspace_id"] = target_ws_id
+
     await db.youtube_channels.update_one(
-        {"channel_id": channel_id},
+        chan_query,
         {"$set": update_fields}
     )
 
-    updated = await db.youtube_channels.find_one({"channel_id": channel_id})
+    updated = await db.youtube_channels.find_one(chan_query)
+    if not updated:
+        updated = await db.youtube_channels.find_one({"channel_id": channel_id})
     if updated:
         updated["_id"] = str(updated["_id"])
     return updated
@@ -241,7 +268,7 @@ async def get_connected_channel(
     """
     try:
         db = AsyncMongoDB.get_db()
-        data, _ = await _resolve_channel_for_user(db, user)
+        data, ws_id = await _resolve_channel_for_user(db, user)
         if not data:
             return {"is_connected": False, "channel": None}
 
@@ -259,7 +286,7 @@ async def get_connected_channel(
 
         if should_auto_sync and data.get("channel_id"):
             try:
-                refreshed = await _perform_youtube_sync(data["channel_id"], db)
+                refreshed = await _perform_youtube_sync(data["channel_id"], db, workspace_id=ws_id)
                 if refreshed:
                     data = refreshed
             except Exception as auto_err:
@@ -284,7 +311,7 @@ async def sync_youtube_channel(
     """Force real-time synchronization of subscriber and view counts with YouTube Data API for current workspace."""
     try:
         db = AsyncMongoDB.get_db()
-        channel, _ = await _resolve_channel_for_user(db, user)
+        channel, ws_id = await _resolve_channel_for_user(db, user)
         if not channel:
             raise HTTPException(status_code=404, detail="No YouTube channel connected to this workspace.")
 
@@ -292,7 +319,7 @@ async def sync_youtube_channel(
         if not channel_id:
             raise HTTPException(status_code=404, detail="Invalid channel configuration.")
 
-        updated_channel = await _perform_youtube_sync(channel_id, db)
+        updated_channel = await _perform_youtube_sync(channel_id, db, workspace_id=ws_id)
         if not updated_channel:
             raise HTTPException(status_code=400, detail="OAuth credentials not found for this channel.")
 

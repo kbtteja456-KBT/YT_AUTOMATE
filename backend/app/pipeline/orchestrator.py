@@ -217,7 +217,23 @@ class PipelineOrchestrator:
         tz = zoneinfo.ZoneInfo(settings.timezone)
         today_slot_date = datetime.now(tz).strftime("%Y-%m-%d")
 
+        workspace_id = None
+        channel_id = None
+        try:
+            from backend.app.core.db import SyncMongoDB
+            from bson import ObjectId
+            db = SyncMongoDB.get_db()
+            q_job = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+            job_record = db.publishing_jobs.find_one(q_job)
+            if job_record:
+                workspace_id = job_record.get("workspace_id")
+                channel_id = job_record.get("channel_id")
+        except Exception:
+            pass
+
         video_record = Video(
+            workspace_id=workspace_id,
+            channel_id=channel_id,
             job_id=job_id,
             title=video_title,
             description=description_text,

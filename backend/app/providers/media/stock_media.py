@@ -89,6 +89,69 @@ class StockMediaEngine(StockMediaProvider):
         img.save(output_path, "PNG")
         return output_path
 
+    async def _search_pexels_video(self, query: str, target_dir: Path) -> Optional[dict[str, Any]]:
+        """Search and download portrait MP4 video clip from Pexels Videos API."""
+        api_key = settings.pexels_api_key.strip()
+        if not api_key:
+            return None
+
+        headers = {"Authorization": api_key}
+        url = "https://api.pexels.com/videos/search"
+        params = {"query": query, "orientation": "portrait", "per_page": 5}
+
+        try:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                resp = await client.get(url, headers=headers, params=params)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    videos = data.get("videos", [])
+                    for vid in videos:
+                        video_files = vid.get("video_files", [])
+                        candidates = [
+                            vf for vf in video_files
+                            if vf.get("link") and (vf.get("file_type") == "video/mp4" or ".mp4" in vf.get("link", ""))
+                        ]
+                        if not candidates:
+                            continue
+
+                        # Sort candidate files by portrait preference and resolution (1080x1920 preferred)
+                        def _score_file(vf: dict[str, Any]) -> int:
+                            w = vf.get("width") or 0
+                            h = vf.get("height") or 0
+                            score = 0
+                            if h > w:
+                                score += 1000
+                            if h == 1920 and w == 1080:
+                                score += 500
+                            elif 720 <= h <= 1920:
+                                score += 300
+                            return score
+
+                        candidates.sort(key=_score_file, reverse=True)
+                        best_vf = candidates[0]
+                        video_url = best_vf["link"]
+
+                        file_hash = hashlib.sha256(video_url.encode("utf-8")).hexdigest()[:12]
+                        local_file = target_dir / f"pexels_video_{file_hash}.mp4"
+
+                        if not local_file.exists():
+                            dl_resp = await client.get(video_url)
+                            if dl_resp.status_code == 200 and len(dl_resp.content) > 10000:
+                                local_file.write_bytes(dl_resp.content)
+
+                        if local_file.exists() and local_file.stat().st_size > 10000:
+                            photographer = vid.get("user", {}).get("name", "Pexels Creator")
+                            return {
+                                "local_path": str(local_file),
+                                "source_url": vid.get("url", video_url),
+                                "license": "Pexels Free to Use License",
+                                "attribution": f"Video by {photographer} on Pexels"
+                            }
+        except Exception as e:
+            logger.warning(f"Pexels video search note: {e}")
+
+        return None
+
     async def _search_pexels_media(self, query: str, target_dir: Path) -> Optional[dict[str, Any]]:
         """Search and download portrait media from Pexels API."""
         api_key = settings.pexels_api_key.strip()
@@ -183,7 +246,7 @@ class StockMediaEngine(StockMediaProvider):
         target_dir: str,
         visual_type: str = "motion_graphic"
     ) -> Scene:
-        """Acquire visual asset for a storyboard scene: Pexels -> Pixabay -> Procedural Card."""
+        """Acquire visual asset for a storyboard scene: Pexels Video -> Pexels Photo -> Pixabay -> Procedural Card."""
         self.verify_zero_cost_compliance()
 
         target_path = Path(target_dir).resolve()
@@ -191,11 +254,28 @@ class StockMediaEngine(StockMediaProvider):
 
         content_hash = hashlib.sha256(query.encode("utf-8")).hexdigest()[:12]
 
-        # 1. Try Pexels if visual_type requests stock footage or image
-        if visual_type in ["stock_footage", "generated_image"]:
+        # 1. First priority: Real Pexels Stock Video Clip (.mp4)
+        pexels_vid = await self._search_pexels_video(query, target_path)
+        if pexels_vid:
+            logger.info(f"Acquired real Pexels stock video clip for '{query[:30]}...' -> {pexels_vid['local_path']}")
+            return Scene(
+                scene_id=1,
+                start=0.0,
+                end=duration_sec,
+                narration="",
+                visual_type=VisualType.STOCK_FOOTAGE,
+                visual_prompt=query,
+                asset_local_path=pexels_vid["local_path"],
+                asset_url=pexels_vid["source_url"],
+                license_info=pexels_vid["license"],
+                attribution=pexels_vid["attribution"]
+            )
+
+        # 2. Second priority: Pexels Photo (if stock footage or generated image requested)
+        if visual_type in ["stock_footage", "generated_image", "motion_graphic"]:
             pexels_res = await self._search_pexels_media(query, target_path)
             if pexels_res:
-                logger.info(f"Acquired Pexels stock media for '{query[:30]}...' -> {pexels_res['local_path']}")
+                logger.info(f"Acquired Pexels stock media photo for '{query[:30]}...' -> {pexels_res['local_path']}")
                 return Scene(
                     scene_id=1,
                     start=0.0,
@@ -209,10 +289,10 @@ class StockMediaEngine(StockMediaProvider):
                     attribution=pexels_res["attribution"]
                 )
 
-            # 2. Try Pixabay
+            # 3. Third priority: Pixabay Photo
             pixabay_res = await self._search_pixabay_media(query, target_path)
             if pixabay_res:
-                logger.info(f"Acquired Pixabay stock media for '{query[:30]}...' -> {pixabay_res['local_path']}")
+                logger.info(f"Acquired Pixabay stock media photo for '{query[:30]}...' -> {pixabay_res['local_path']}")
                 return Scene(
                     scene_id=1,
                     start=0.0,
@@ -226,7 +306,7 @@ class StockMediaEngine(StockMediaProvider):
                     attribution=pixabay_res["attribution"]
                 )
 
-        # 3. Procedural high-retention 1080x1920 graphic card
+        # 4. Fallback: Procedural high-retention 1080x1920 graphic card
         output_file = str(target_path / f"scene_{content_hash}.png")
         self._generate_procedural_card(
             text=query,

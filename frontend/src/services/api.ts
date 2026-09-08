@@ -146,6 +146,7 @@ export interface VideoItem {
   quality_score: number;
   youtube_video_id?: string;
   youtube_url?: string;
+  status?: string;
   views?: number;
   likes?: number;
   created_at: string;
@@ -441,5 +442,14 @@ export const api = {
     if (!res.ok) throw new Error('Failed to get auth url');
     const data = await res.json();
     return data.auth_url;
+  },
+
+  async publishVideo(videoId: string): Promise<{ status: string; youtube_video_id?: string; youtube_url?: string; message: string }> {
+    const res = await authFetch(`${API_BASE}/videos/${videoId}/publish`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to publish video to YouTube');
+    }
+    return res.json();
   }
 };

@@ -76,3 +76,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def is_platform_trials_disabled() -> bool:
+    """Return True if platform-provided free trials are disabled."""
+    import os
+    val = os.getenv("DISABLE_PLATFORM_TRIALS", "false").strip().lower()
+    return val in ("true", "1", "yes")

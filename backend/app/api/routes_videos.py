@@ -23,6 +23,7 @@ class GenerateVideoRequest(BaseModel):
     topic: Optional[str] = Field(default=None, description="Optional custom topic")
     target_duration_sec: float = Field(default=45.0, ge=30.0, le=60.0)
     slot_index: int = Field(default=1, ge=1, le=2)
+    auto_publish: bool = Field(default=True, description="Post directly to connected YouTube channel once generated")
 
 
 def _serialize_doc(doc: dict[str, Any]) -> dict[str, Any]:
@@ -55,7 +56,13 @@ def _serialize_doc(doc: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _dispatch_pipeline_job(job_id: str, topic: Optional[str] = None, slot_index: int = 1) -> None:
+def _dispatch_pipeline_job(
+    job_id: str,
+    topic: Optional[str] = None,
+    slot_index: int = 1,
+    workspace_id: Optional[str] = None,
+    auto_publish: bool = False
+) -> None:
     """Dispatch the real PipelineOrchestrator in a background thread."""
     import asyncio
     from backend.app.celery_app.tasks import _build_orchestrator
@@ -70,17 +77,23 @@ def _dispatch_pipeline_job(job_id: str, topic: Optional[str] = None, slot_index:
 
     try:
         async def _run():
-            orchestrator = _build_orchestrator(db)
+            orchestrator = _build_orchestrator(db, workspace_id=workspace_id)
             orchestrator.job_repo = JobRepository(db)
             orchestrator.video_repo = VideoRepository(db)
-            return await orchestrator.execute_job(job_id=job_id, custom_topic=topic)
+            return await orchestrator.execute_job(
+                job_id=job_id,
+                custom_topic=topic,
+                publish_immediately=auto_publish,
+                slot_index=slot_index
+            )
 
         res = asyncio.run(_run())
+        final_state = JobState.PUBLISHED.value if res.get("status") == "PUBLISHED" else JobState.READY.value
         db.publishing_jobs.update_one(
             {"_id": job_id},
-            {"$set": {"state": JobState.READY.value, "details": res, "updated_at": datetime.now(timezone.utc)}}
+            {"$set": {"state": final_state, "details": res, "updated_at": datetime.now(timezone.utc)}}
         )
-        logger.info(f"Manual video generation job {job_id} completed — state READY.")
+        logger.info(f"Manual video generation job {job_id} completed — state {final_state}.")
     except Exception as exc:
         logger.exception(f"Manual video generation failed for job {job_id}: {exc}")
         db.publishing_jobs.update_one(
@@ -91,13 +104,53 @@ def _dispatch_pipeline_job(job_id: str, topic: Optional[str] = None, slot_index:
 
 
 @router.post("/generate")
-async def trigger_video_generation(request: GenerateVideoRequest) -> dict[str, Any]:
-    """Manually queue a real video generation pipeline job in MongoDB."""
+async def trigger_video_generation(
+    request: GenerateVideoRequest,
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
+    """Manually queue a real video generation pipeline job in MongoDB scoped to caller's workspace."""
     db = SyncMongoDB.get_db()
     now = datetime.now(timezone.utc)
     topic = request.topic or "Autonomous Tech Discovery"
     job_id = f"job_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}_{request.slot_index}"
     idempotency_key = compute_content_hash(f"manual_{topic}_{job_id}")
+
+    # Resolve workspace_id from authenticated user
+    workspace_id = None
+    if user:
+        if not user.get("is_owner"):
+            target_ws_id = user.get("default_workspace_id")
+            ws = None
+            if target_ws_id:
+                try:
+                    ws = db.workspaces.find_one({"_id": ObjectId(target_ws_id)})
+                except Exception:
+                    ws = db.workspaces.find_one({"_id": target_ws_id})
+            if not ws:
+                user_id_str = str(user.get("_id") or user.get("id"))
+                ws = db.workspaces.find_one({"owner_id": user_id_str})
+            if ws:
+                workspace_id = str(ws["_id"])
+        else:
+            legacy_ws = db.workspaces.find_one({"is_legacy_default": True}) or db.workspaces.find_one()
+            if legacy_ws:
+                workspace_id = str(legacy_ws["_id"])
+
+    # Fallback to legacy default workspace if anonymous caller
+    if not workspace_id:
+        legacy_ws = db.workspaces.find_one({"is_legacy_default": True})
+        if legacy_ws:
+            workspace_id = str(legacy_ws["_id"])
+
+    # Check if this workspace has an active connected YouTube channel
+    has_yt = False
+    if workspace_id:
+        chan = db.youtube_channels.find_one({"workspace_id": workspace_id, "is_active": True}) or db.youtube_channels.find_one({"workspace_id": workspace_id})
+        if chan:
+            tok = db.oauth_tokens.find_one({"workspace_id": workspace_id}) or db.oauth_tokens.find_one({"channel_id": chan["channel_id"]})
+            has_yt = bool(tok)
+
+    should_auto_publish = request.auto_publish and has_yt
 
     existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})
     if existing:
@@ -122,17 +175,131 @@ async def trigger_video_generation(request: GenerateVideoRequest) -> dict[str, A
     )
     job_doc = job.to_mongo_dict()
     job_doc["_id"] = job_id
+    if workspace_id:
+        job_doc["workspace_id"] = workspace_id
+    if user:
+        job_doc["user_id"] = str(user.get("_id") or user.get("id"))
+
     db.publishing_jobs.insert_one(job_doc)
 
-    threading.Thread(target=_dispatch_pipeline_job, args=(job_id, request.topic, request.slot_index), daemon=True).start()
-    queue_message = "Video generation job created and queued."
+    threading.Thread(
+        target=_dispatch_pipeline_job,
+        args=(job_id, request.topic, request.slot_index, workspace_id, should_auto_publish),
+        daemon=True
+    ).start()
+
+    pub_note = " and will auto-publish to your connected YouTube channel" if should_auto_publish else ""
+    queue_message = f"Video generation job created and queued{pub_note}."
 
     return {
         "status": "QUEUED",
         "job_id": job_id,
+        "workspace_id": workspace_id,
+        "auto_publish": should_auto_publish,
         "idempotency_key": idempotency_key,
         "message": queue_message
     }
+
+
+@router.post("/{video_id}/publish")
+async def publish_video_now(
+    video_id: str,
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
+    """Manually publish an existing rendered video to the workspace's connected YouTube channel."""
+    db = SyncMongoDB.get_db()
+    query = {"_id": ObjectId(video_id)} if ObjectId.is_valid(video_id) else {"_id": video_id}
+    video_doc = db.videos.find_one(query)
+    if not video_doc:
+        video_doc = db.videos.find_one({"_id": video_id})
+    if not video_doc:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    if video_doc.get("status") == "PUBLISHED" and video_doc.get("youtube_video_id"):
+        return {
+            "status": "ALREADY_PUBLISHED",
+            "youtube_video_id": video_doc.get("youtube_video_id"),
+            "youtube_url": video_doc.get("youtube_url")
+        }
+
+    ws_id = video_doc.get("workspace_id")
+    if user and not ws_id:
+        target_ws_id = user.get("default_workspace_id")
+        if target_ws_id:
+            ws_id = str(target_ws_id)
+
+    from backend.app.celery_app.tasks import _get_authenticated_youtube_provider
+    from backend.app.agents.youtube import YouTubeAgent
+    from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
+
+    youtube_provider = _get_authenticated_youtube_provider(db, workspace_id=ws_id)
+    if not getattr(youtube_provider, "credentials", None):
+        raise HTTPException(
+            status_code=400,
+            detail="No connected YouTube channel found for this workspace. Please connect your YouTube account in the dashboard."
+        )
+
+    youtube_agent = YouTubeAgent(youtube_provider=youtube_provider)
+
+    thumb_card = None
+    if video_doc.get("thumbnail_path"):
+        thumb_card = ThumbnailCard(
+            file_path=str(video_doc["thumbnail_path"]),
+            file_hash="thumb",
+            spec=ThumbnailSpec(source_frame_timestamp=0.0, overlay_text="")
+        )
+
+    import asyncio
+    try:
+        upload_res = asyncio.run(youtube_agent.publish_short(
+            video_filepath=str(video_doc["file_path"]),
+            title=str(video_doc.get("title", "Python Quiz #Shorts")),
+            description=str(video_doc.get("description", "")),
+            tags=list(video_doc.get("tags") or ["Shorts", "Python"]),
+            thumbnail=thumb_card,
+            privacy_status="public"
+        ))
+
+        now_utc = datetime.now(timezone.utc)
+        db.videos.update_one(
+            {"_id": video_doc["_id"]},
+            {
+                "$set": {
+                    "status": "PUBLISHED",
+                    "youtube_video_id": upload_res.get("youtube_video_id"),
+                    "youtube_url": upload_res.get("youtube_url"),
+                    "youtube_published_at": now_utc,
+                    "updated_at": now_utc
+                }
+            }
+        )
+
+        job_id = video_doc.get("job_id")
+        if job_id:
+            from bson import ObjectId
+            j_q = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+            db.publishing_jobs.update_one(
+                j_q,
+                {
+                    "$set": {
+                        "state": JobState.PUBLISHED.value,
+                        "youtube_video_id": upload_res.get("youtube_video_id"),
+                        "youtube_url": upload_res.get("youtube_url"),
+                        "published_at": now_utc,
+                        "updated_at": now_utc
+                    }
+                }
+            )
+
+        return {
+            "status": "PUBLISHED",
+            "youtube_video_id": upload_res.get("youtube_video_id"),
+            "youtube_url": upload_res.get("youtube_url"),
+            "message": "Video successfully uploaded and published to your YouTube channel!"
+        }
+    except Exception as e:
+        logger.error(f"Manual video publishing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"YouTube upload failed: {str(e)}")
 
 
 @router.get("")

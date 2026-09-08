@@ -38,16 +38,24 @@ from backend.app.core.errors import YouTubeAPIError
 from backend.app.providers.youtube.youtube_client import YouTubeClientProvider
 
 
-def _get_authenticated_youtube_provider(db: Optional[Any] = None) -> YouTubeClientProvider:
+def _get_authenticated_youtube_provider(db: Optional[Any] = None, workspace_id: Optional[str] = None) -> YouTubeClientProvider:
     """Instantiate a real YouTubeClientProvider with Google OAuth credentials if connected in MongoDB."""
     if db is None:
         db = SyncMongoDB.get_db()
 
     creds = None
     try:
-        channel = db.youtube_channels.find_one({"is_active": True}) or db.youtube_channels.find_one()
+        channel = None
+        if workspace_id:
+            channel = db.youtube_channels.find_one({"workspace_id": workspace_id, "is_active": True}) or db.youtube_channels.find_one({"workspace_id": workspace_id})
+        if not channel:
+            channel = db.youtube_channels.find_one({"is_active": True}) or db.youtube_channels.find_one()
+
         if channel:
-            token_doc = db.oauth_tokens.find_one({"channel_id": channel["channel_id"]})
+            token_query: dict[str, Any] = {"channel_id": channel["channel_id"]}
+            if workspace_id:
+                token_query["workspace_id"] = workspace_id
+            token_doc = db.oauth_tokens.find_one(token_query) or db.oauth_tokens.find_one({"channel_id": channel["channel_id"]})
             if token_doc:
                 from backend.app.models.channel import OAuthTokenRecord
                 from backend.app.core.oauth import GoogleOAuthManager
@@ -61,7 +69,7 @@ def _get_authenticated_youtube_provider(db: Optional[Any] = None) -> YouTubeClie
     return YouTubeClientProvider(credentials=creds)
 
 
-def _build_orchestrator(db: Any = None) -> PipelineOrchestrator:
+def _build_orchestrator(db: Any = None, workspace_id: Optional[str] = None) -> PipelineOrchestrator:
     """Build a concrete PipelineOrchestrator using real provider and agent implementations."""
     if db is None:
         db = SyncMongoDB.get_db()
@@ -72,7 +80,7 @@ def _build_orchestrator(db: Any = None) -> PipelineOrchestrator:
     stt_provider = WhisperProvider()
     stock_provider = StockMediaEngine(media_dir=settings.media_storage_dir)
     thumb_provider = ThumbnailEngine()
-    youtube_provider = _get_authenticated_youtube_provider(db)
+    youtube_provider = _get_authenticated_youtube_provider(db, workspace_id=workspace_id)
 
     idea = IdeaAgent(ai_provider=ai_provider)
     research = ResearchAgent(ai_provider=ai_provider, search_provider=search_provider)
@@ -126,7 +134,8 @@ async def _execute_pipeline_job(job_id: str) -> dict[str, Any]:
     video_repo = VideoRepository(db)
     job_data = db.publishing_jobs.find_one({"_id": job_id})
     topic = job_data.get("topic") if job_data else None
-    orchestrator = _build_orchestrator()
+    workspace_id = job_data.get("workspace_id") if job_data else None
+    orchestrator = _build_orchestrator(db, workspace_id=workspace_id)
     orchestrator.job_repo = repo
     orchestrator.video_repo = video_repo
     return await orchestrator.execute_job(job_id=job_id, custom_topic=topic)
@@ -342,7 +351,8 @@ def publish_slot_task(slot_index: int = 1) -> dict[str, Any]:
             )
 
         # Build real YouTubeAgent with loaded credentials
-        youtube_provider = _get_authenticated_youtube_provider(db)
+        ws_id = job.get("workspace_id") or (video_doc.get("workspace_id") if video_doc else None)
+        youtube_provider = _get_authenticated_youtube_provider(db, workspace_id=ws_id)
         youtube_agent = YouTubeAgent(youtube_provider=youtube_provider)
 
         # Execute upload coroutine

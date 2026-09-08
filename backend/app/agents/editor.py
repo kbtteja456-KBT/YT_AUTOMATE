@@ -47,42 +47,62 @@ class EditorAgent(BaseAgent):
             if not asset_file or not Path(asset_file).exists():
                 raise ProviderError(f"Missing asset file for scene {scene.scene_id}: {asset_file}")
 
-            # Scale/Crop filter to exact 1080x1920 with subtle Ken Burns zoom
-            # fps=30, t=duration
-            vf_filter = (
-                f"scale=1080:1920:force_original_aspect_ratio=increase,"
-                f"crop=1080:1920,"
-                f"zoompan=z='min(zoom+0.001,1.08)':d={max(int(duration * 30), 1)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
-            )
+            is_video_clip = Path(asset_file).suffix.lower() in [".mp4", ".mov", ".mkv", ".webm", ".avi"]
 
-            cmd_seg = [
-                ffmpeg_bin, "-y",
-                "-threads", "2",
-                "-loop", "1",
-                "-i", asset_file,
-                "-t", str(duration),
-                "-vf", vf_filter,
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-pix_fmt", "yuv420p",
-                "-r", "30",
-                seg_out
-            ]
-
-            res_seg = subprocess.run(cmd_seg, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if res_seg.returncode != 0:
-                self.log(f"Scene render note ({res_seg.stderr[:120]}), applying fallback scale...", "WARNING")
-                # Simple scale fallback
-                cmd_fallback = [
+            if is_video_clip:
+                # Real stock video footage: loop smoothly up to duration, scale/crop to 1080x1920 portrait
+                vf_filter = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
+                cmd_seg = [
+                    ffmpeg_bin, "-y",
+                    "-threads", "2",
+                    "-stream_loop", "-1",
+                    "-i", asset_file,
+                    "-t", str(duration),
+                    "-vf", vf_filter,
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-pix_fmt", "yuv420p",
+                    "-an",
+                    "-r", "30",
+                    seg_out
+                ]
+            else:
+                # Static image: Scale/Crop filter to exact 1080x1920 with subtle Ken Burns zoom
+                vf_filter = (
+                    f"scale=1080:1920:force_original_aspect_ratio=increase,"
+                    f"crop=1080:1920,"
+                    f"zoompan=z='min(zoom+0.001,1.08)':d={max(int(duration * 30), 1)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
+                )
+                cmd_seg = [
                     ffmpeg_bin, "-y",
                     "-threads", "2",
                     "-loop", "1",
                     "-i", asset_file,
                     "-t", str(duration),
-                    "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+                    "-vf", vf_filter,
                     "-c:v", "libx264",
                     "-preset", "ultrafast",
                     "-pix_fmt", "yuv420p",
+                    "-r", "30",
+                    seg_out
+                ]
+
+            res_seg = subprocess.run(cmd_seg, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res_seg.returncode != 0:
+                self.log(f"Scene render note ({res_seg.stderr[:120]}), applying fallback scale...", "WARNING")
+                # Simple scale fallback
+                fallback_input = ["-stream_loop", "-1"] if is_video_clip else ["-loop", "1"]
+                cmd_fallback = [
+                    ffmpeg_bin, "-y",
+                    "-threads", "2",
+                    *fallback_input,
+                    "-i", asset_file,
+                    "-t", str(duration),
+                    "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-pix_fmt", "yuv420p",
+                    "-an",
                     "-r", "30",
                     seg_out
                 ]

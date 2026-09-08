@@ -11,8 +11,30 @@ interface VideosPageProps {
 export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick, onVideoDeleted }) => {
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [confirmDeleteVideo, setConfirmDeleteVideo] = useState<VideoItem | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+
+  const handlePublishVideo = async (video: VideoItem) => {
+    setPublishingId(video.id);
+    setFeedbackMessage(null);
+    try {
+      const res = await api.publishVideo(video.id);
+      setFeedbackMessage(`🎉 Published successfully to your connected YouTube channel!`);
+      if (selectedVideo?.id === video.id) {
+        setSelectedVideo({
+          ...selectedVideo,
+          youtube_video_id: res.youtube_video_id,
+          youtube_url: res.youtube_url,
+          status: 'PUBLISHED'
+        });
+      }
+    } catch (err: any) {
+      setFeedbackMessage(`Upload error: ${err.message || 'Failed to publish to YouTube'}`);
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   const getThumbnailSrc = (video: VideoItem) => {
     if (video.youtube_video_id) {
@@ -399,6 +421,26 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick,
                   <TrashIcon size={14} color="#f87171" />
                   Delete
                 </button>
+                {!selectedVideo.youtube_url && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={publishingId === selectedVideo.id}
+                    onClick={() => handlePublishVideo(selectedVideo)}
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      borderRadius: '8px',
+                      cursor: publishingId === selectedVideo.id ? 'not-allowed' : 'pointer'
+                    }}
+                    title="Upload and publish directly to your connected YouTube channel"
+                  >
+                    {publishingId === selectedVideo.id ? '⏳ Uploading...' : '🚀 Publish to YouTube'}
+                  </button>
+                )}
                 {selectedVideo.youtube_url && (
                   <a
                     href={selectedVideo.youtube_url}
