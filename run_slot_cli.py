@@ -198,7 +198,8 @@ async def run_real_pipeline(
     slot_index: int,
     custom_topic: Optional[str] = None,
     force: bool = False,
-    dry_run: bool = False
+    dry_run: bool = False,
+    workspace_id: Optional[str] = None
 ) -> dict:
     """
     Execute the full end-to-end Short generation with atomic concurrency locking.
@@ -209,7 +210,11 @@ async def run_real_pipeline(
     - If slot is already published today, exits cleanly with ALREADY_PUBLISHED.
     - Recovers from stale or failed executions automatically without laptop booting.
     - Supports dry_run mode (renders video and audits QC without public YouTube upload).
+    - When workspace_id is provided, runs for that tenant workspace and enforces trial quota.
     """
+    from bson import ObjectId
+    from backend.app.core.ledger import check_and_acquire_trial_quota_atomic_sync
+
     db = SyncMongoDB.get_db()
     tz = zoneinfo.ZoneInfo(settings.timezone)
     now_local = datetime.now(tz)
@@ -217,13 +222,26 @@ async def run_real_pipeline(
     now_utc = datetime.now(timezone.utc)
     stale_lease_seconds = 15 * 60  # 15 minutes lease
 
-    # Idempotency key uniquely identifies slot per date
-    idempotency_key = compute_content_hash(f"autopilot_{date_str}_slot{slot_index}")
+    # Resolve workspace niche and enforce trial quota if tenant
+    workspace_niche = "Python Quiz #Shorts"
+    if workspace_id:
+        if not dry_run:
+            allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+            if not allowed:
+                log_run(f"❌ [TRIAL QUOTA] Workspace {workspace_id} cannot publish: {reason}")
+                return {"status": "QUOTA_EXHAUSTED", "reason": reason}
+
+        ws_obj = db.workspaces.find_one({"_id": ObjectId(workspace_id)}) if ObjectId.is_valid(workspace_id) else db.workspaces.find_one({"_id": workspace_id})
+        if ws_obj:
+            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Tech & Tools"
+        idempotency_key = compute_content_hash(f"autopilot_{date_str}_{workspace_id}_slot{slot_index}")
+    else:
+        idempotency_key = compute_content_hash(f"autopilot_{date_str}_slot{slot_index}")
 
     # 1. Check if already published today
-    if not force and is_slot_published_today(slot_index, date_str):
+    if not force and is_slot_published_today(slot_index, date_str, workspace_id=workspace_id):
         log_run(
-            f"✅ [IDEMPOTENCY] Slot {slot_index} has ALREADY been published today ({date_str}). "
+            f"✅ [IDEMPOTENCY] Slot {slot_index} has ALREADY been published today ({date_str}) for workspace {workspace_id or 'Owner'}. "
             f"Skipping redundant run to prevent duplicate videos."
         )
         return {"status": "ALREADY_PUBLISHED"}
@@ -291,13 +309,16 @@ async def run_real_pipeline(
                 "scheduled_at": now_utc,
                 "state": JobState.RUNNING.value,
                 "idempotency_key": idempotency_key,
-                "topic": custom_topic or "Python Quiz #Shorts",
+                "topic": custom_topic or workspace_niche,
+                "niche": workspace_niche,
                 "created_at": now_utc,
                 "updated_at": now_utc,
                 "is_buffered": False,
                 "triggered_by": "cloud_autopilot",
                 "retry_count": 0,
             }
+            if workspace_id:
+                job_doc["workspace_id"] = workspace_id
             res = db.publishing_jobs.insert_one(job_doc)
             job_id = str(res.inserted_id)
             log_run(f"📝 Acquired new atomic job lock {job_id} for Slot {slot_index} ({date_str}).")
@@ -307,15 +328,16 @@ async def run_real_pipeline(
             return {"status": "ALREADY_RUNNING"}
 
     # 4. Build and execute the real PipelineOrchestrator
-    orchestrator = _build_orchestrator(db)
+    orchestrator = _build_orchestrator(db, workspace_id=workspace_id)
     from backend.app.core.repositories import JobRepository, VideoRepository
     orchestrator.job_repo = JobRepository(db)
     orchestrator.video_repo = VideoRepository(db)
 
-    log_run(f"🤖 Launching PipelineOrchestrator for job {job_id} (slot {slot_index}, dry_run={dry_run})...")
+    log_run(f"🤖 Launching PipelineOrchestrator for job {job_id} (slot {slot_index}, dry_run={dry_run}, ws={workspace_id or 'Owner'})...")
 
     result = await orchestrator.execute_job(
         job_id=job_id,
+        niche=workspace_niche,
         custom_topic=custom_topic,
         publish_immediately=not dry_run,
         slot_index=slot_index,
@@ -375,6 +397,17 @@ async def main():
         default=None,
         help="Optional custom topic override",
     )
+    parser.add_argument(
+        "--workspace-id",
+        type=str,
+        default=None,
+        help="Target a specific tenant workspace ID instead of Owner default",
+    )
+    parser.add_argument(
+        "--include-tenants",
+        action="store_true",
+        help="Also trigger scheduled publishing for active tenant workspaces with Autopilot enabled",
+    )
     args = parser.parse_args()
 
     # If health check requested, execute and exit immediately
@@ -428,21 +461,26 @@ async def main():
             slot_index=slot,
             custom_topic=args.topic,
             force=args.force,
-            dry_run=args.dry_run
+            dry_run=args.dry_run,
+            workspace_id=args.workspace_id
         )
         status = result.get("status")
         if status in ("ALREADY_PUBLISHED", "ALREADY_RUNNING"):
-            sys.exit(0)
+            log_run(f"Pipeline finished with status: {status}")
         elif status == "DRY_RUN_COMPLETED":
             log_run("✅ Dry run verification finished successfully.")
-            sys.exit(0)
         elif status == "PUBLISHED":
             yt_url = result.get("youtube_url")
             log_run(f"✅ SUCCESS: Short published to YouTube → {yt_url}")
-            sys.exit(0)
         else:
             log_run(f"Pipeline finished with status: {status}")
-            sys.exit(0)
+
+        if args.include_tenants and not args.workspace_id:
+            from backend.app.core.cron_scheduler import process_tenant_workspaces_for_slot
+            log_run("Scanning and processing active tenant workspaces...")
+            await process_tenant_workspaces_for_slot(slot, today_str)
+
+        sys.exit(0)
 
     except Exception as e:
         log_run(f"❌ PIPELINE EXECUTION FAILED: {e}")

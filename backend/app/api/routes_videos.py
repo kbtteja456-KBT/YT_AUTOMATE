@@ -164,6 +164,13 @@ async def trigger_video_generation(
 
     should_auto_publish = request.auto_publish and has_yt
 
+    # Enforce 3-video trial quota for non-owner tenants
+    if workspace_id:
+        from backend.app.core.ledger import check_and_acquire_trial_quota_atomic_sync
+        allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+        if not allowed:
+            raise HTTPException(status_code=403, detail=reason)
+
     existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})
     if existing:
         return {

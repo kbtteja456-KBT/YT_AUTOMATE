@@ -13,11 +13,16 @@ The /run-slot/{slot_index} endpoint below dispatches to the same real path.
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Header, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Header, Query, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
+from bson import ObjectId
+from datetime import datetime, timezone
 
 from backend.app.config import settings
 from backend.app.core.logging import logger
+from backend.app.core.db import SyncMongoDB
+from backend.app.core.auth import get_optional_current_user
+from backend.app.core.ledger import can_workspace_generate_sync
 
 router = APIRouter(prefix="/autopilot", tags=["autopilot"])
 
@@ -27,25 +32,139 @@ class TriggerSlotRequest(BaseModel):
 
 
 @router.get("/status")
-async def get_autopilot_status_endpoint() -> dict[str, Any]:
-    """Retrieve live status of the autonomous publishing engine."""
-    from backend.app.core.cron_scheduler import get_autopilot_status
+async def get_autopilot_status_endpoint(
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
+    """Retrieve live status of the autonomous publishing engine, scoped to tenant workspace if authenticated."""
+    from backend.app.core.cron_scheduler import get_autopilot_status, get_slot_status_today
+    import zoneinfo
+    tz = zoneinfo.ZoneInfo(settings.timezone)
+    now = datetime.now(tz)
+    today_str = now.strftime("%Y-%m-%d")
+
+    db = SyncMongoDB.get_db()
+    ws = None
+    if user and not user.get("is_owner"):
+        target_ws_id = user.get("default_workspace_id")
+        if target_ws_id:
+            try:
+                ws = db.workspaces.find_one({"_id": ObjectId(target_ws_id)})
+            except Exception:
+                ws = db.workspaces.find_one({"_id": target_ws_id})
+        if not ws:
+            user_id_str = str(user.get("_id") or user.get("id"))
+            ws = db.workspaces.find_one({"owner_id": user_id_str})
+
+    if ws:
+        ws_id = str(ws["_id"])
+        base_status = get_autopilot_status()
+        base_status["is_enabled"] = ws.get("autopilot_enabled", False)
+        base_status["workspace_id"] = ws_id
+        base_status["workspace_name"] = ws.get("name")
+        base_status["niche"] = ws.get("niche")
+        base_status["trial_quota"] = ws.get("trial_quota")
+        base_status["status_today"] = {
+            "slot_1": get_slot_status_today(1, today_str, workspace_id=ws_id),
+            "slot_2": get_slot_status_today(2, today_str, workspace_id=ws_id)
+        }
+        return base_status
+
     return get_autopilot_status()
 
 
 @router.post("/start")
-async def start_autopilot_endpoint() -> dict[str, Any]:
-    """Resume autonomous publishing."""
-    from backend.app.core.cron_scheduler import set_autopilot_enabled
+async def start_autopilot_endpoint(
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
+    """Resume autonomous publishing for workspace or platform."""
+    from backend.app.core.cron_scheduler import set_autopilot_enabled, start_autopilot_scheduler
+    db = SyncMongoDB.get_db()
+
+    ws = None
+    if user and not user.get("is_owner"):
+        target_ws_id = user.get("default_workspace_id")
+        if target_ws_id:
+            try:
+                ws = db.workspaces.find_one({"_id": ObjectId(target_ws_id)})
+            except Exception:
+                ws = db.workspaces.find_one({"_id": target_ws_id})
+        if not ws:
+            user_id_str = str(user.get("_id") or user.get("id"))
+            ws = db.workspaces.find_one({"owner_id": user_id_str})
+
+        if ws:
+            ws_id = str(ws["_id"])
+            # Verify YouTube channel connected
+            chan = db.youtube_channels.find_one({"workspace_id": ws_id, "is_active": True}) or db.youtube_channels.find_one({"workspace_id": ws_id})
+            if not chan:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please connect your YouTube channel in Settings before starting Autopilot."
+                )
+            # Verify trial quota or BYOK key
+            can_gen, reason = can_workspace_generate_sync(ws_id)
+            if not can_gen:
+                raise HTTPException(status_code=403, detail=reason)
+
+            db.workspaces.update_one(
+                {"_id": ws["_id"]},
+                {"$set": {"autopilot_enabled": True, "updated_at": datetime.now(timezone.utc)}}
+            )
+            # Ensure scheduler loop is running
+            start_autopilot_scheduler()
+            return {
+                "is_enabled": True,
+                "workspace_id": ws_id,
+                "message": f"Autonomous publishing activated for {ws.get('name', 'your channel')}!"
+            }
+
+    # Owner / Global
     set_autopilot_enabled(True)
+    db.workspaces.update_one(
+        {"is_legacy_default": True},
+        {"$set": {"autopilot_enabled": True, "updated_at": datetime.now(timezone.utc)}}
+    )
     return {"is_enabled": True, "message": "Autonomous publishing scheduler active."}
 
 
 @router.post("/stop")
-async def stop_autopilot_endpoint() -> dict[str, Any]:
-    """Pause autonomous publishing."""
+async def stop_autopilot_endpoint(
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
+    """Pause autonomous publishing for workspace or platform."""
     from backend.app.core.cron_scheduler import set_autopilot_enabled
+    db = SyncMongoDB.get_db()
+
+    ws = None
+    if user and not user.get("is_owner"):
+        target_ws_id = user.get("default_workspace_id")
+        if target_ws_id:
+            try:
+                ws = db.workspaces.find_one({"_id": ObjectId(target_ws_id)})
+            except Exception:
+                ws = db.workspaces.find_one({"_id": target_ws_id})
+        if not ws:
+            user_id_str = str(user.get("_id") or user.get("id"))
+            ws = db.workspaces.find_one({"owner_id": user_id_str})
+
+        if ws:
+            ws_id = str(ws["_id"])
+            db.workspaces.update_one(
+                {"_id": ws["_id"]},
+                {"$set": {"autopilot_enabled": False, "updated_at": datetime.now(timezone.utc)}}
+            )
+            return {
+                "is_enabled": False,
+                "workspace_id": ws_id,
+                "message": f"Autonomous publishing paused for {ws.get('name', 'your channel')}."
+            }
+
+    # Owner / Global
     set_autopilot_enabled(False)
+    db.workspaces.update_one(
+        {"is_legacy_default": True},
+        {"$set": {"autopilot_enabled": False, "updated_at": datetime.now(timezone.utc)}}
+    )
     return {"is_enabled": False, "message": "Autonomous publishing scheduler paused."}
 
 

@@ -74,7 +74,23 @@ def _build_orchestrator(db: Any = None, workspace_id: Optional[str] = None) -> P
     if db is None:
         db = SyncMongoDB.get_db()
     storage = LocalStorageProvider(base_dir=settings.media_storage_dir)
-    ai_provider = OpenRouterProvider(api_key=settings.openrouter_api_key, timeout_seconds=5.0, max_retries=1)
+
+    ai_api_key = settings.openrouter_api_key
+    if workspace_id:
+        try:
+            from backend.app.core.security import decrypt_token
+            byok = db.workspace_api_keys.find_one({
+                "workspace_id": workspace_id,
+                "provider": "openrouter",
+                "is_valid": True
+            })
+            if byok and byok.get("encrypted_key"):
+                ai_api_key = decrypt_token(byok["encrypted_key"])
+                logger.info(f"Using BYOK OpenRouter key for workspace {workspace_id}")
+        except Exception as d_err:
+            logger.warning(f"Could not decrypt BYOK OpenRouter key for workspace {workspace_id}: {d_err}")
+
+    ai_provider = OpenRouterProvider(api_key=ai_api_key, timeout_seconds=5.0, max_retries=1)
     search_provider = DuckDuckGoSearchProvider()
     tts_provider = EdgeTTSProvider()
     stt_provider = WhisperProvider()

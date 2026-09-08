@@ -101,7 +101,11 @@ async def handle_youtube_callback(
                 )
                 await db.workspaces.update_one(
                     {"_id": ObjectId(workspace_id)},
-                    {"$set": {"connected_channel_id": channel_id, "updated_at": datetime.now(timezone.utc)}}
+                    {"$set": {
+                        "connected_channel_id": channel_id,
+                        "autopilot_enabled": True,
+                        "updated_at": datetime.now(timezone.utc)
+                    }}
                 )
             else:
                 await db.oauth_tokens.update_one(
