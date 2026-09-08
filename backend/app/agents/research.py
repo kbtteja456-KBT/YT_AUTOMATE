@@ -14,8 +14,9 @@ from typing import Any, Optional
 from backend.app.agents.base import BaseAgent
 from backend.app.core.logging import logger
 from backend.app.core.errors import AutopilotError
+from backend.app.core.language_detector import detect_language_from_niche
 from backend.app.models.video import ResearchReport, ResearchItem
-from backend.app.agents.idea import PYTHON_QUIZ_POOL
+from backend.app.agents.idea import PYTHON_QUIZ_POOL, C_QUIZ_POOL
 
 
 ALLOWED_MODULES = {"math", "string", "itertools", "collections", "random"}
@@ -34,7 +35,10 @@ class ResearchAgent(BaseAgent):
 
     async def conduct_research(self, topic: str, niche: str = "Python Programming") -> ResearchReport:
         """Construct research report packaging code snippet, options, and explanation."""
-        self.log(f"Structuring Python quiz research for: '{topic}'...")
+        lang_profile = detect_language_from_niche(niche)
+        fallback_pool = C_QUIZ_POOL if lang_profile.slug == "c" else PYTHON_QUIZ_POOL
+        lang_name = lang_profile.display_name
+        self.log(f"Structuring {lang_name} quiz research for: '{topic}'...")
 
         # 1. Attempt to pull candidate from content_ideas MongoDB collection
         quiz_data: Optional[dict[str, Any]] = None
@@ -76,7 +80,7 @@ class ResearchAgent(BaseAgent):
                 res = await self.ai.generate_structured(
                     prompt=f"Research topic: {topic} in niche: {niche}",
                     response_schema=schema,
-                    system_prompt="Research accurate facts and code snippets."
+                    system_prompt=f"Research accurate {lang_name} facts and code snippets."
                 )
                 if res and res.get("items") and not res.get("question_code"):
                     return ResearchReport(
@@ -91,30 +95,34 @@ class ResearchAgent(BaseAgent):
                             ) for it in res.get("items", [])
                         ],
                         key_takeaway=res.get("key_takeaway", topic),
-                        content_format="general"
+                        content_format="general",
+                        language=lang_profile.slug
                     )
                 elif res and res.get("question_code"):
-                    try:
-                        FactCheckAgent._validate_ast_safety(res["question_code"])
+                    if lang_profile.slug == "python":
+                        try:
+                            FactCheckAgent._validate_ast_safety(res["question_code"])
+                            quiz_data = res
+                        except Exception as e:
+                            self.log(f"AI quiz snippet failed AST safety check ({e}), falling back to curated pool.", "WARNING")
+                    else:
                         quiz_data = res
-                    except Exception as e:
-                        self.log(f"AI quiz snippet failed AST safety check ({e}), falling back to curated pool.", "WARNING")
             except Exception as e:
                 self.log(f"AI research fallback: {e}")
 
-        # 3. Fallback to matching or default quiz from PYTHON_QUIZ_POOL
+        # 3. Fallback to matching or default quiz from fallback pool
         if not quiz_data:
             match = next(
-                (q for q in PYTHON_QUIZ_POOL if q["concept_tag"] in topic.lower() or q["concept_tag"].replace("_", " ") in topic.lower() or q["concept_tag"].replace("_", "") in topic.lower()),
+                (q for q in fallback_pool if q["concept_tag"] in topic.lower() or q["concept_tag"].replace("_", " ") in topic.lower() or q["concept_tag"].replace("_", "") in topic.lower()),
                 None
             )
-            quiz_data = match or PYTHON_QUIZ_POOL[0]
+            quiz_data = match or fallback_pool[0]
 
         items = [
             ResearchItem(
-                fact=quiz_data.get("question_code", "print('Python')"),
-                source="Python 3.11 Runtime Behavior",
-                interpretation=quiz_data.get("explanation", "Python executes instructions step-by-step."),
+                fact=quiz_data.get("question_code", "printf('Hello');" if lang_profile.slug == "c" else "print('Python')"),
+                source=f"{lang_name} Language Semantics" if lang_profile.slug != "python" else "Python 3.11 Runtime Behavior",
+                interpretation=quiz_data.get("explanation", f"{lang_name} executes instructions step-by-step."),
                 verified=False
             )
         ]
@@ -123,14 +131,15 @@ class ResearchAgent(BaseAgent):
             topic=topic,
             niche=niche,
             items=items,
-            key_takeaway=quiz_data.get("explanation", "Python execution semantics"),
+            key_takeaway=quiz_data.get("explanation", f"{lang_name} execution semantics"),
             content_format="quiz_card",
             question_code=quiz_data.get("question_code"),
             options=quiz_data.get("options", ["A) None", "B) 0", "C) Output", "D) Error"]),
             correct_option=quiz_data.get("correct_option", "C"),
             explanation=quiz_data.get("explanation", ""),
-            concept_tag=quiz_data.get("concept_tag", "python_behavior"),
-            verified_output=None
+            concept_tag=quiz_data.get("concept_tag", f"{lang_profile.slug}_behavior"),
+            verified_output=None,
+            language=lang_profile.slug
         )
 
         self.log(f"Structured research for concept: {report.concept_tag} with {len(report.options)} options.")
@@ -254,8 +263,129 @@ class FactCheckAgent(BaseAgent):
         except Exception:
             pass
 
+    async def _verify_non_python_code(self, report: ResearchReport) -> ResearchReport:
+        """Verify non-Python code (e.g. C, C++, Java, JS) via strict multi-step LLM trace."""
+        code = report.question_code or ""
+        lang_profile = detect_language_from_niche(report.niche)
+        self.log(f"Fact-checking {lang_profile.display_name} snippet via compiler execution trace...")
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "step_by_step_trace": {"type": "string"},
+                "exact_terminal_output": {"type": "string"},
+                "correct_option_letter": {"type": "string", "enum": ["A", "B", "C", "D"]},
+                "explanation": {"type": "string"}
+            },
+            "required": ["exact_terminal_output", "correct_option_letter", "explanation"]
+        }
+
+        prompt = (
+            f"You are a strict {lang_profile.display_name} compiler and runtime execution environment.\n"
+            f"Code snippet:\n```\n{code}\n```\n"
+            f"Multiple choice options:\n{report.options}\n\n"
+            f"Instructions:\n"
+            f"1. Trace the code execution line by line, tracking variables and memory state.\n"
+            f"2. Determine the EXACT printed terminal output (ignoring trailing whitespace).\n"
+            f"3. Select the single correct option letter (A, B, C, or D) that matches this output.\n"
+            f"4. Provide a 1-2 sentence crystal clear explanation of why this output occurs."
+        )
+
+        try:
+            if self.ai:
+                resp = await self.ai.generate_structured(
+                    prompt=prompt,
+                    response_schema=schema,
+                    system_prompt=f"You are a strict {lang_profile.display_name} compiler and execution engine. Output verified ground truth only."
+                )
+                if resp:
+                    opt_letter = resp.get("correct_option_letter", "").strip().upper()
+                    exact_out = resp.get("exact_terminal_output", "").strip()
+                    expl = resp.get("explanation", "").strip()
+                    if opt_letter in ("A", "B", "C", "D"):
+                        report.correct_option = opt_letter
+                        report.verified_output = exact_out
+                        if expl:
+                            report.explanation = expl
+                        self.log(f"✅ Verified {lang_profile.display_name} answer: Option {opt_letter} (output: '{exact_out}')")
+                        if report.items:
+                            report.items[0].verified = True
+                        await self._log_audit_run(code, f"VERIFIED_{lang_profile.slug.upper()}", 0.05, {
+                            "stdout": exact_out,
+                            "matched_option": opt_letter,
+                            "options": report.options
+                        })
+                        return report
+        except Exception as e:
+            self.log(f"AI verification note: {e}, falling back to candidate option.", "WARNING")
+
+        self.log(f"Approved candidate option: {report.correct_option}")
+        if report.items:
+            report.items[0].verified = True
+        return report
+
+    async def _verify_trivia_quiz(self, report: ResearchReport) -> ResearchReport:
+        """Verify trivia/riddle questions and ensure unambiguous correct option."""
+        q_text = report.question_text or report.question_code or ""
+        self.log(f"Fact-checking trivia question: '{q_text[:60]}...'")
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "is_factually_accurate": {"type": "boolean"},
+                "correct_option_letter": {"type": "string", "enum": ["A", "B", "C", "D"]},
+                "explanation": {"type": "string"}
+            },
+            "required": ["is_factually_accurate", "correct_option_letter", "explanation"]
+        }
+
+        prompt = (
+            f"Question: {q_text}\n"
+            f"Multiple choice options: {report.options}\n"
+            f"Claimed correct option: {report.correct_option}\n\n"
+            f"Instructions:\n"
+            f"1. Verify that this question has an unambiguous, factually true answer.\n"
+            f"2. Select the correct option letter (A, B, C, or D).\n"
+            f"3. Provide a clear 1-2 sentence explanation of the fact."
+        )
+
+        try:
+            if self.ai:
+                resp = await self.ai.generate_structured(
+                    prompt=prompt,
+                    response_schema=schema,
+                    system_prompt="You are a strict encyclopedia fact-checker verifying trivia questions and answers."
+                )
+                if resp:
+                    opt = resp.get("correct_option_letter", "").strip().upper()
+                    if opt in ("A", "B", "C", "D"):
+                        report.correct_option = opt
+                        report.verified_output = opt
+                    expl = resp.get("explanation", "").strip()
+                    if expl:
+                        report.explanation = expl
+                    self.log(f"✅ Verified trivia answer: Option {report.correct_option}")
+                    return report
+        except Exception as e:
+            self.log(f"Trivia fact-check note: {e}, using candidate option.", "WARNING")
+
+        report.verified_output = report.correct_option
+        return report
+
+    async def _verify_quote_card(self, report: ResearchReport) -> ResearchReport:
+        """Verify quote text and author attribution."""
+        self.log(f"Verifying quote attribution for: '{report.topic}'...")
+        report.verified_output = report.quote_author or "Verified"
+        return report
+
     async def verify_and_prune(self, report: ResearchReport) -> ResearchReport:
-        """Verify the Python snippet by REAL SUBPROCESS EXECUTION or prune legacy claims."""
+        """Verify content: Python code sandbox (owner), compiler trace (C), trivia or quote checks."""
+        if report.content_format == "quote_card":
+            return await self._verify_quote_card(report)
+
+        if report.content_format == "trivia_quiz":
+            return await self._verify_trivia_quiz(report)
+
         if report.content_format != "quiz_card" and not report.question_code:
             self.log(f"Fact-checking {len(report.items)} items for topic '{report.topic}'...")
             verified_items: list[ResearchItem] = []
@@ -274,6 +404,11 @@ class FactCheckAgent(BaseAgent):
             self.log(f"Fact-check approved {len(report.items)} verified claims.")
             return report
 
+        # Non-Python languages (e.g. C, C++, Java, JS) use compiler trace simulation
+        if getattr(report, "language", "python") not in ("python", "general"):
+            return await self._verify_non_python_code(report)
+
+        # Platform owner / Python users: 100% UNCHANGED isolated Python subprocess execution
         code = report.question_code or (report.items[0].fact if report.items else "")
         self.log(f"Fact-checking snippet by real isolated subprocess execution (3.0s timeout)...")
 

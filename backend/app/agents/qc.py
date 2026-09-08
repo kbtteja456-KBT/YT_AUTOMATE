@@ -34,7 +34,7 @@ class QCAgent(BaseAgent):
 
         # Detect format if not explicitly passed
         job_id = Path(video_path).stem.replace("short_", "")
-        is_quiz = (content_format == "quiz_card")
+        is_quiz = (content_format in ("quiz_card", "trivia_quiz", "quote_card"))
         if not is_quiz:
             # Check if assets directory contains quiz cards
             asset_dir = Path("media_storage") / "assets" / f"job_{job_id}"

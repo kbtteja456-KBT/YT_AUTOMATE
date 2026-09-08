@@ -256,3 +256,24 @@ def can_workspace_generate_sync(workspace_id: str) -> Tuple[bool, str]:
 
     return True, f"Trial active ({v_gen}/{v_max} videos used)"
 
+
+def refund_trial_quota_atomic_sync(workspace_id: str) -> bool:
+    """Refund a previously acquired trial video quota if a pipeline was cancelled before rendering."""
+    try:
+        db = SyncMongoDB.get_db()
+        ws = db.workspaces.find_one({"_id": ObjectId(workspace_id)}) if ObjectId.is_valid(workspace_id) else db.workspaces.find_one({"_id": workspace_id})
+        if not ws or ws.get("is_legacy_default", False):
+            return True
+        db.workspaces.update_one(
+            {"_id": ws["_id"], "trial_quota.videos_generated": {"$gt": 0}},
+            {
+                "$inc": {"trial_quota.videos_generated": -1},
+                "$set": {"trial_quota.is_exhausted": False, "updated_at": datetime.now(timezone.utc)}
+            }
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error refunding trial quota for workspace {workspace_id}: {e}")
+        return False
+
+

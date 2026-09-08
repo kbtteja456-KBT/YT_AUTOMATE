@@ -48,8 +48,16 @@ def _get_authenticated_youtube_provider(db: Optional[Any] = None, workspace_id: 
         channel = None
         if workspace_id:
             channel = db.youtube_channels.find_one({"workspace_id": workspace_id, "is_active": True}) or db.youtube_channels.find_one({"workspace_id": workspace_id})
-        if not channel:
-            channel = db.youtube_channels.find_one({"is_active": True}) or db.youtube_channels.find_one()
+            # Never fall back to platform owner's channel for a tenant workspace
+            if not channel:
+                logger.info(f"Tenant workspace {workspace_id} has no connected YouTube channel.")
+                return YouTubeClientProvider(credentials=None)
+        else:
+            owner_ws = db.workspaces.find_one({"is_legacy_default": True})
+            if owner_ws:
+                channel = db.youtube_channels.find_one({"workspace_id": str(owner_ws["_id"]), "is_active": True}) or db.youtube_channels.find_one({"workspace_id": str(owner_ws["_id"])})
+            if not channel:
+                channel = db.youtube_channels.find_one({"is_active": True}) or db.youtube_channels.find_one()
 
         if channel:
             token_query: dict[str, Any] = {"channel_id": channel["channel_id"]}
@@ -77,20 +85,46 @@ def _build_orchestrator(db: Any = None, workspace_id: Optional[str] = None) -> P
 
     ai_api_key = settings.openrouter_api_key
     if workspace_id:
+        from bson import ObjectId
+        ws_doc = None
         try:
-            from backend.app.core.security import decrypt_token
+            ws_doc = db.workspaces.find_one({"_id": ObjectId(workspace_id)})
+        except Exception:
+            ws_doc = db.workspaces.find_one({"_id": workspace_id})
+
+        is_owner = ws_doc.get("is_legacy_default", False) if ws_doc else False
+
+        if not is_owner:
+            tq = (ws_doc.get("trial_quota") or {}) if ws_doc else {}
+            videos_generated = tq.get("videos_generated", 0)
+            max_videos = tq.get("max_videos", 3)
+
             byok = db.workspace_api_keys.find_one({
                 "workspace_id": workspace_id,
                 "provider": "openrouter",
                 "is_valid": True
             })
-            if byok and byok.get("encrypted_key"):
-                ai_api_key = decrypt_token(byok["encrypted_key"])
-                logger.info(f"Using BYOK OpenRouter key for workspace {workspace_id}")
-        except Exception as d_err:
-            logger.warning(f"Could not decrypt BYOK OpenRouter key for workspace {workspace_id}: {d_err}")
 
-    ai_provider = OpenRouterProvider(api_key=ai_api_key, timeout_seconds=5.0, max_retries=1)
+            if byok and byok.get("encrypted_key"):
+                from backend.app.core.security import decrypt_token
+                try:
+                    ai_api_key = decrypt_token(byok["encrypted_key"])
+                    logger.info(f"Using BYOK OpenRouter key for tenant workspace {workspace_id}")
+                except Exception as d_err:
+                    logger.error(f"Failed to decrypt BYOK key for workspace {workspace_id}: {d_err}")
+                    if videos_generated >= max_videos:
+                        from backend.app.core.errors import AutopilotError
+                        raise AutopilotError("Could not decrypt your OpenRouter API key. Please re-enter it in Settings -> Vault.")
+            else:
+                # No BYOK key configured!
+                if videos_generated >= max_videos:
+                    from backend.app.core.errors import AutopilotError
+                    raise AutopilotError(
+                        f"Free trial quota exhausted ({videos_generated}/{max_videos} videos used). "
+                        "To generate more videos, please configure your own OpenRouter API key in Settings -> Vault."
+                    )
+
+    ai_provider = OpenRouterProvider(api_key=ai_api_key, timeout_seconds=45.0, max_retries=2)
     search_provider = DuckDuckGoSearchProvider()
     tts_provider = EdgeTTSProvider()
     stt_provider = WhisperProvider()

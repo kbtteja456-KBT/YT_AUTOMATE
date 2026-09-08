@@ -98,13 +98,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 from backend.app.core.db import SyncMongoDB
                 db = SyncMongoDB.get_db()
                 doc = db.publishing_jobs.find_one({"_id": job_id})
-                if doc and doc.get("content_format") == "quiz_card":
+                if doc and doc.get("content_format") in ("quiz_card", "trivia_quiz", "quote_card"):
                     is_quiz = True
             except Exception:
                 pass
 
         if is_quiz:
-            self.log("[CaptionAgent] content_format == 'quiz_card': Quiz card PNGs contain all on-screen code, options, and explanation. Marking stage complete immediately with no caption overlay (no-op).")
+            self.log("[CaptionAgent] content_format is visual card: Cards contain all on-screen content. Marking stage complete immediately with no caption overlay (no-op).")
             return ("", [])
 
         # Standard Speech-to-Text Transcription for general format

@@ -20,9 +20,9 @@ class StoryboardAgent(BaseAgent):
     ) -> Storyboard:
         """Break narration script into scenes aligned with style pacing blueprint or quiz format."""
         profile = style_profile or StyleProfile()
-        is_quiz = (getattr(script, "content_format", "general") == "quiz_card")
+        is_quiz = (getattr(script, "content_format", "general") in ("quiz_card", "trivia_quiz", "quote_card"))
 
-        self.log(f"Creating storyboard for '{script.topic}' (format: {'quiz_card' if is_quiz else 'general'})...")
+        self.log(f"Creating storyboard for '{script.topic}' (format: {getattr(script, 'content_format', 'general')})...")
 
         if is_quiz:
             # Exactly 2 scenes: Question Card (~17s) and Reveal Card (~7s)

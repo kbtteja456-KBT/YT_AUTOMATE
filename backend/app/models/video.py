@@ -40,6 +40,10 @@ class ResearchReport(MongoBaseModel):
     explanation: Optional[str] = None
     concept_tag: Optional[str] = None
     verified_output: Optional[str] = None
+    language: str = "python"
+    question_text: Optional[str] = None
+    quote_text: Optional[str] = None
+    quote_author: Optional[str] = None
 
 
 class Hook(MongoBaseModel):
@@ -73,6 +77,10 @@ class Script(MongoBaseModel):
     explanation: Optional[str] = None
     concept_tag: Optional[str] = None
     verified_output: Optional[str] = None
+    language: str = "python"
+    question_text: Optional[str] = None
+    quote_text: Optional[str] = None
+    quote_author: Optional[str] = None
 
 
 class CaptionWord(MongoBaseModel):

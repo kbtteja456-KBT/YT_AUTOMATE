@@ -14,6 +14,7 @@ _scheduler_task: Optional[asyncio.Task] = None
 _is_autopilot_enabled: bool = True
 _is_pipeline_running: bool = False
 _currently_running_slot: Optional[int] = None
+_is_tenant_processing: bool = False
 
 
 def is_slot_published_today(slot_index: int, today_str: Optional[str] = None, workspace_id: Optional[str] = None) -> bool:
@@ -144,7 +145,7 @@ async def execute_slot_pipeline(
     from backend.app.core.repositories import JobRepository, VideoRepository
     from backend.app.models.job import JobState
     from backend.app.celery_app.tasks import _build_orchestrator
-    from backend.app.core.ledger import check_and_acquire_trial_quota_atomic_sync
+    from backend.app.core.ledger import can_workspace_generate_sync, check_and_acquire_trial_quota_atomic_sync
 
     db = SyncMongoDB.get_db()
     now = datetime.now(timezone.utc)
@@ -153,8 +154,8 @@ async def execute_slot_pipeline(
 
     workspace_niche = "Python Quiz #Shorts"
     if workspace_id:
-        allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
-        if not allowed:
+        can_gen, reason = can_workspace_generate_sync(workspace_id)
+        if not can_gen:
             logger.warning(f"[Autopilot] Workspace {workspace_id} cannot publish: {reason}")
             return {"status": "QUOTA_EXHAUSTED", "reason": reason, "workspace_id": workspace_id}
 
@@ -205,12 +206,26 @@ async def execute_slot_pipeline(
             )
             return {"status": "ALREADY_RUNNING", "job_id": str(existing["_id"])}
 
+        # Verified not running and not published - acquire quota if tenant
+        if workspace_id:
+            allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+            if not allowed:
+                logger.warning(f"[Autopilot] Workspace {workspace_id} cannot acquire quota: {reason}")
+                return {"status": "QUOTA_EXHAUSTED", "reason": reason, "workspace_id": workspace_id}
+
         job_id = str(existing["_id"])
         db.publishing_jobs.update_one(
             {"_id": existing["_id"]},
             {"$set": {"state": JobState.RUNNING.value, "error_message": None, "updated_at": now}}
         )
     else:
+        # Verified new run - acquire quota if tenant
+        if workspace_id:
+            allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+            if not allowed:
+                logger.warning(f"[Autopilot] Workspace {workspace_id} cannot acquire quota: {reason}")
+                return {"status": "QUOTA_EXHAUSTED", "reason": reason, "workspace_id": workspace_id}
+
         doc = {
             "slot_index": slot_index,
             "scheduled_at": now,
@@ -263,6 +278,12 @@ async def run_slot_with_lock(slot_index: int, custom_topic: Optional[str] = None
 
 async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str) -> None:
     """Scan and publish scheduled Shorts for all active tenant workspaces with connected YouTube channels."""
+    global _is_tenant_processing
+    if _is_tenant_processing:
+        logger.debug(f"[Tenant Autopilot] Tenant processing cycle already active. Standing down.")
+        return
+
+    _is_tenant_processing = True
     try:
         from backend.app.core.db import SyncMongoDB
         from backend.app.core.ledger import can_workspace_generate_sync
@@ -310,6 +331,8 @@ async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str) ->
                 logger.error(f"[Tenant Autopilot] Failed for workspace '{ws_name}': {ws_err}", exc_info=True)
     except Exception as top_err:
         logger.error(f"[Tenant Autopilot] Error scanning tenant workspaces: {top_err}", exc_info=True)
+    finally:
+        _is_tenant_processing = False
 
 
 async def _scheduler_loop():
@@ -337,7 +360,8 @@ async def _scheduler_loop():
                     logger.info(f"⏰ [Autopilot Scheduler] Slot 1 (07:00 AM) due or catching up for {today_str}. Launching Owner Pipeline...")
                     asyncio.create_task(run_slot_with_lock(1))
                 # Process active tenant workspaces
-                asyncio.create_task(process_tenant_workspaces_for_slot(1, today_str))
+                if not _is_tenant_processing:
+                    asyncio.create_task(process_tenant_workspaces_for_slot(1, today_str))
 
             # Evening Slot (Slot 2): Target 06:00 PM (18:00) IST
             elif 18 <= hour <= 23:
@@ -345,7 +369,8 @@ async def _scheduler_loop():
                     logger.info(f"⏰ [Autopilot Scheduler] Slot 2 (06:00 PM) due or catching up for {today_str}. Launching Owner Pipeline...")
                     asyncio.create_task(run_slot_with_lock(2))
                 # Process active tenant workspaces
-                asyncio.create_task(process_tenant_workspaces_for_slot(2, today_str))
+                if not _is_tenant_processing:
+                    asyncio.create_task(process_tenant_workspaces_for_slot(2, today_str))
 
             # Poll interval: check every 30 seconds
             await asyncio.sleep(30)

@@ -162,11 +162,12 @@ class VoiceAgent(BaseAgent):
         After this call, self.last_music_attribution holds the CC BY credit line to append
         to the YouTube description (None if track is CC0 or TTS narration was used).
         """
-        is_quiz = getattr(script, "content_format", "general") == "quiz_card"
+        c_fmt = getattr(script, "content_format", "general")
+        is_quiz = (c_fmt in ("quiz_card", "trivia_quiz", "quote_card"))
 
         if is_quiz:
             self.log(
-                "[VoiceAgent] content_format == 'quiz_card': "
+                f"[VoiceAgent] content_format == '{c_fmt}': "
                 "Skipping TTS narration. Selecting licensed background music..."
             )
             output_file = self.storage.get_path("audio", f"bg_music_{job_id}.mp3")

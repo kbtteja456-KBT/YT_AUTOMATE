@@ -5,6 +5,165 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from backend.app.agents.base import BaseAgent
 from backend.app.core.security import compute_content_hash
+from backend.app.core.language_detector import detect_language_from_niche, detect_content_archetype
+
+
+C_QUIZ_POOL = [
+    {
+        "concept_tag": "c_array_index_syntax",
+        "topic": "C Quiz: The 2[arr] Array Syntax Trick #Shorts",
+        "question_code": "#include <stdio.h>\nint main() {\n    int a[] = {10, 20, 30};\n    printf(\"%d\", 2[a]);\n    return 0;\n}",
+        "options": ["A) Syntax Error", "B) 10", "C) 30", "D) Garbage Value"],
+        "correct_option": "C",
+        "explanation": "In C, 2[a] evaluates to *(2 + a), which is identical to *(a + 2) and a[2], printing 30."
+    },
+    {
+        "concept_tag": "c_macro_precedence",
+        "topic": "C Quiz: Macro Expansion Without Parentheses #Shorts",
+        "question_code": "#include <stdio.h>\n#define SQUARE(x) x * x\nint main() {\n    int r = SQUARE(2 + 3);\n    printf(\"%d\", r);\n    return 0;\n}",
+        "options": ["A) 25", "B) 11", "C) 13", "D) Compile Error"],
+        "correct_option": "B",
+        "explanation": "Macros do textual replacement: 2 + 3 * 2 + 3. Multiplication takes precedence: 2 + 6 + 3 = 11."
+    },
+    {
+        "concept_tag": "c_integer_division",
+        "topic": "C Quiz: Integer Division Before Float Cast #Shorts",
+        "question_code": "#include <stdio.h>\nint main() {\n    float f = 5 / 2;\n    printf(\"%.1f\", f);\n    return 0;\n}",
+        "options": ["A) 2.5", "B) 2.0", "C) 2", "D) Error"],
+        "correct_option": "B",
+        "explanation": "5 and 2 are integers, so integer division truncates to 2 before assigning to float f, yielding 2.0."
+    },
+    {
+        "concept_tag": "c_post_increment_eval",
+        "topic": "C Quiz: Post-Increment in Function Call #Shorts",
+        "question_code": "#include <stdio.h>\nint main() {\n    int x = 5;\n    printf(\"%d %d\", x++, x);\n    return 0;\n}",
+        "options": ["A) 5 6", "B) 6 6", "C) 5 5", "D) Undefined / Compiler Dependent"],
+        "correct_option": "D",
+        "explanation": "Modifying x and reading it in unsequenced function arguments invokes undefined/unspecified evaluation order in C standards."
+    },
+    {
+        "concept_tag": "c_comma_operator",
+        "topic": "C Quiz: The Comma Operator Secret #Shorts",
+        "question_code": "#include <stdio.h>\nint main() {\n    int x = (1, 2, 3);\n    printf(\"%d\", x);\n    return 0;\n}",
+        "options": ["A) 1", "B) 3", "C) 6", "D) Syntax Error"],
+        "correct_option": "B",
+        "explanation": "The comma operator inside parentheses evaluates expressions left-to-right and yields the rightmost operand (3)."
+    },
+    {
+        "concept_tag": "c_sizeof_char_array",
+        "topic": "C Quiz: sizeof String Literal with Null Byte #Shorts",
+        "question_code": "#include <stdio.h>\nint main() {\n    char s[] = \"Code\";\n    printf(\"%zu\", sizeof(s));\n    return 0;\n}",
+        "options": ["A) 4", "B) 5", "C) 8", "D) 1"],
+        "correct_option": "B",
+        "explanation": "String literals in C automatically include a hidden null terminator '\\0', making the total array size 5 bytes."
+    }
+]
+
+
+TRIVIA_QUIZ_POOL = [
+    {
+        "concept_tag": "trivia_saturn_moons",
+        "topic": "Trivia Quiz: Which Planet Has The Most Moons? #Shorts",
+        "angle": "Planetary science trivia",
+        "question_code": "Which planet in our solar system has the most confirmed moons?",
+        "options": ["A) Jupiter", "B) Saturn", "C) Uranus", "D) Neptune"],
+        "correct_option": "B",
+        "explanation": "Saturn has 146 confirmed moons, overtaking Jupiter's 95 moons!"
+    },
+    {
+        "concept_tag": "riddle_keyboard_keys",
+        "topic": "Riddle Challenge: What Has Keys But Can't Open Locks? #Shorts",
+        "angle": "Classic brain teaser riddle",
+        "question_code": "I have keys, but no locks. I have space, but no room. You can enter, but can't go outside. What am I?",
+        "options": ["A) A Map", "B) A Keyboard", "C) A Clock", "D) A Piano"],
+        "correct_option": "B",
+        "explanation": "A computer keyboard has keys, a space bar, and an Enter key!"
+    },
+    {
+        "concept_tag": "trivia_strongest_muscle",
+        "topic": "Trivia Quiz: Strongest Muscle in the Human Body #Shorts",
+        "angle": "Human biology trivia",
+        "question_code": "Based on its weight, which is the strongest muscle in the human body?",
+        "options": ["A) Gluteus Maximus", "B) Biceps", "C) Masseter (Jaw)", "D) Heart"],
+        "correct_option": "C",
+        "explanation": "The masseter (jaw muscle) can close the teeth with a force up to 200 pounds!"
+    },
+    {
+        "concept_tag": "trivia_first_tv_toy",
+        "topic": "Trivia Quiz: First Toy Advertised on TV #Shorts",
+        "angle": "History and pop culture trivia",
+        "question_code": "What was the very first toy ever advertised on commercial television?",
+        "options": ["A) Barbie", "B) Mr. Potato Head", "C) LEGO", "D) Hot Wheels"],
+        "correct_option": "B",
+        "explanation": "Mr. Potato Head was the first toy advertised on TV in 1952!"
+    },
+    {
+        "concept_tag": "riddle_towel_water",
+        "topic": "Riddle Challenge: What Gets Wetter The More It Dries? #Shorts",
+        "angle": "Clever everyday riddle",
+        "question_code": "What gets wetter and wetter the more it dries?",
+        "options": ["A) A Sponge", "B) A Towel", "C) A Cloud", "D) Soap"],
+        "correct_option": "B",
+        "explanation": "A towel absorbs water as it dries you off, making it wetter!"
+    },
+    {
+        "concept_tag": "trivia_fastest_ocean_animal",
+        "topic": "Trivia Quiz: Fastest Creature in the Ocean #Shorts",
+        "angle": "Ocean wildlife trivia",
+        "question_code": "Which of these ocean animals can swim the fastest?",
+        "options": ["A) Great White Shark", "B) Sailfish", "C) Blue Whale", "D) Killer Whale"],
+        "correct_option": "B",
+        "explanation": "The Sailfish can leap and swim at speeds of up to 68 miles per hour (110 km/h)!"
+    }
+]
+
+
+QUOTE_POOL = [
+    {
+        "concept_tag": "quote_marcus_aurelius_control",
+        "topic": "Stoic Wisdom: Marcus Aurelius On What You Can Control #Shorts",
+        "angle": "Stoic philosophy and mindset",
+        "question_code": "You have power over your mind - not outside events. Realize this, and you will find strength. - Marcus Aurelius",
+        "quote_text": "You have power over your mind - not outside events. Realize this, and you will find strength.",
+        "author": "Marcus Aurelius",
+        "options": [],
+        "correct_option": "",
+        "explanation": "Stop trying to control external events. Master your inner mind and reaction to become unstoppable."
+    },
+    {
+        "concept_tag": "quote_steve_jobs_work",
+        "topic": "Daily Motivation: Steve Jobs On Doing What You Love #Shorts",
+        "angle": "Life inspiration and passion",
+        "question_code": "The only way to do great work is to love what you do. If you haven't found it yet, keep looking. - Steve Jobs",
+        "quote_text": "The only way to do great work is to love what you do. If you haven't found it yet, keep looking.",
+        "author": "Steve Jobs",
+        "options": [],
+        "correct_option": "",
+        "explanation": "Don't settle for living on autopilot. When you align your work with your purpose, greatness follows naturally."
+    },
+    {
+        "concept_tag": "quote_seneca_time",
+        "topic": "Stoic Wisdom: Seneca On How We Waste Time #Shorts",
+        "angle": "Time management and philosophy",
+        "question_code": "It is not that we have a short time to live, but that we waste a lot of it. - Seneca",
+        "quote_text": "It is not that we have a short time to live, but that we waste a lot of it.",
+        "author": "Seneca",
+        "options": [],
+        "correct_option": "",
+        "explanation": "Life is long enough if you spend your hours with intention. Guard your time like your most precious asset."
+    },
+    {
+        "concept_tag": "quote_einstein_simplicity",
+        "topic": "Mindset Shift: Albert Einstein On Simplicity #Shorts",
+        "angle": "Intellect and simplicity",
+        "question_code": "If you can't explain it simply, you don't understand it well enough. - Albert Einstein",
+        "quote_text": "If you can't explain it simply, you don't understand it well enough.",
+        "author": "Albert Einstein",
+        "options": [],
+        "correct_option": "",
+        "explanation": "True mastery is not making things complicated, but stripping away the noise until the truth is obvious."
+    }
+]
 
 
 # Robust baseline pool of 38 verified, distinct Python behaviors across diverse categories
@@ -379,61 +538,168 @@ class IdeaAgent(BaseAgent):
         past_topics: Optional[list[str]] = None,
         slot_index: int = 1
     ) -> dict[str, Any]:
-        """Generate a fresh, unique Python 'What's the output?' quiz question from 38+ distinct concepts."""
-        self.log(f"Generating Python Quiz Short concept for slot {slot_index}...")
+        """Generate a fresh, unique concept matching the user's niche archetype."""
+        archetype_info = detect_content_archetype(niche)
+        arch = archetype_info.archetype
 
         past_topics = past_topics or []
         memory = await self._get_content_memory()
-        
-        # Track all recently covered concepts (last 30)
+
         recent_concepts: list[str] = []
         for m in memory:
             tag = m.get("concept_tag")
             if tag and tag not in recent_concepts:
                 recent_concepts.append(tag)
-        
+
         past_snippets = [m.get("question_code", "").strip() for m in memory if m.get("question_code")]
-
         excluded_tags_str = ", ".join(recent_concepts[:15]) if recent_concepts else "None"
-        prompt = (
-            f"Generate 3 distinct multiple-choice Python 'What's the output?' quiz questions.\n"
-            f"Target audience: beginner-to-intermediate Python developers on YouTube Shorts in niche '{niche}'.\n"
-            f"CRITICAL: DO NOT use any of these recently covered concepts: [{excluded_tags_str}].\n"
-            f"Choose from diverse concepts: string methods, dictionary keys & hash collisions, tuple immutability with mutable contents, "
-            f"operator precedence, walrus operator, lambda late binding closures, integer caching, try-finally return overrides, "
-            f"starred unpacking, banker's rounding, set comprehensions, or generator exhaustion.\n"
-            f"RULES:\n"
-            f"1. CODE: Clean, readable at a glance, strictly 3 to 7 lines max. Valid Python 3 syntax.\n"
-            f"2. OPTIONS: Exactly 4 options (A, B, C, D). Exactly 1 is correct.\n"
-            f"3. DECEPTIVE: Wrong answers must be plausible near-misses a beginner would pick.\n"
-            f"4. Avoid recently covered topics: {past_topics[-10:] if past_topics else 'None'}."
-        )
 
-        schema = {
-            "type": "object",
-            "properties": {
-                "candidates": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "topic": {"type": "string"},
-                            "angle": {"type": "string"},
-                            "concept_tag": {"type": "string"},
-                            "question_code": {"type": "string"},
-                            "options": {
-                                "type": "array",
-                                "items": {"type": "string"}
+        # -------------------------------------------------------------
+        # 1. QUOTE CARD ARCHETYPE (Stoicism, Motivation, Life Wisdom)
+        # -------------------------------------------------------------
+        if arch == "quote_card":
+            self.log(f"Generating Quote Short concept for slot {slot_index} (niche: '{niche}')...")
+            prompt = (
+                f"Generate 3 distinct, powerful quotes for YouTube Shorts in niche '{niche}'.\n"
+                f"Target audience: people seeking wisdom, motivation, and mental clarity.\n"
+                f"CRITICAL: DO NOT use any of these recently covered concepts: [{excluded_tags_str}].\n"
+                f"RULES:\n"
+                f"1. 'topic': Punchy title with #Shorts (e.g. 'Stoic Wisdom: Marcus Aurelius On Mindset #Shorts').\n"
+                f"2. 'quote_text': Powerful, timeless quote under 25 words.\n"
+                f"3. 'author': Exact author or historical philosopher/leader.\n"
+                f"4. 'explanation': 1-2 sentence real-world life takeaway or reflection.\n"
+                f"5. 'concept_tag': Unique slug (e.g. 'quote_seneca_focus')."
+            )
+            system_prompt = "You are a master curator of timeless wisdom, stoic philosophy, and viral motivational Shorts."
+            fallback_pool = QUOTE_POOL
+            schema = {
+                "type": "object",
+                "properties": {
+                    "candidates": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "topic": {"type": "string"},
+                                "quote_text": {"type": "string"},
+                                "author": {"type": "string"},
+                                "explanation": {"type": "string"},
+                                "concept_tag": {"type": "string"}
                             },
-                            "correct_option": {"type": "string"},
-                            "explanation": {"type": "string"}
-                        },
-                        "required": ["topic", "question_code", "options", "correct_option", "explanation"]
+                            "required": ["topic", "quote_text", "author", "explanation"]
+                        }
                     }
-                }
-            },
-            "required": ["candidates"]
-        }
+                },
+                "required": ["candidates"]
+            }
+
+        # -------------------------------------------------------------
+        # 2. TRIVIA QUIZ ARCHETYPE (GK, Science, Riddles, Movie Trivia)
+        # -------------------------------------------------------------
+        elif arch == "trivia_quiz":
+            self.log(f"Generating Trivia/Riddle Short concept for slot {slot_index} (niche: '{niche}')...")
+            prompt = (
+                f"Generate 3 distinct, viral multiple-choice trivia questions or brain-teaser riddles in niche '{niche}'.\n"
+                f"Target audience: curious viewers on YouTube Shorts.\n"
+                f"CRITICAL: DO NOT use any of these recently covered concepts: [{excluded_tags_str}].\n"
+                f"RULES:\n"
+                f"1. 'topic': Catchy title with #Shorts (e.g. 'Trivia Quiz: Which Planet Has The Most Moons? #Shorts').\n"
+                f"2. 'question_code': Clean, engaging question or riddle under 20 words.\n"
+                f"3. 'options': Exactly 4 multiple-choice options (A, B, C, D). Exactly 1 is correct.\n"
+                f"4. 'correct_option': Single letter A, B, C, or D.\n"
+                f"5. 'explanation': 1-2 sentence mind-blowing fact explaining the correct answer."
+            )
+            system_prompt = "You are an expert trivia game host creating intriguing, viral quiz Shorts."
+            fallback_pool = TRIVIA_QUIZ_POOL
+            schema = {
+                "type": "object",
+                "properties": {
+                    "candidates": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "topic": {"type": "string"},
+                                "angle": {"type": "string"},
+                                "concept_tag": {"type": "string"},
+                                "question_code": {"type": "string"},
+                                "options": {
+                                    "type": "array",
+                                    "items": {"type": "string"}
+                                },
+                                "correct_option": {"type": "string"},
+                                "explanation": {"type": "string"}
+                            },
+                            "required": ["topic", "question_code", "options", "correct_option", "explanation"]
+                        }
+                    }
+                },
+                "required": ["candidates"]
+            }
+
+        # -------------------------------------------------------------
+        # 3. CODE QUIZ ARCHETYPE (Python for Owner, Target Language for Tenants)
+        # -------------------------------------------------------------
+        else:
+            lang_profile = archetype_info.lang_profile or detect_language_from_niche(niche)
+            is_python = (lang_profile.slug == "python")
+            self.log(f"Generating {lang_profile.display_name} Quiz Short concept for slot {slot_index}...")
+
+            if is_python:
+                prompt = (
+                    f"Generate 3 distinct multiple-choice Python 'What's the output?' quiz questions.\n"
+                    f"Target audience: beginner-to-intermediate Python developers on YouTube Shorts in niche '{niche}'.\n"
+                    f"CRITICAL: DO NOT use any of these recently covered concepts: [{excluded_tags_str}].\n"
+                    f"Choose from diverse concepts: string methods, dictionary keys & hash collisions, tuple immutability with mutable contents, "
+                    f"operator precedence, walrus operator, lambda late binding closures, integer caching, try-finally return overrides, "
+                    f"starred unpacking, banker's rounding, set comprehensions, or generator exhaustion.\n"
+                    f"RULES:\n"
+                    f"1. CODE: Clean, readable at a glance, strictly 3 to 7 lines max. Valid Python 3 syntax.\n"
+                    f"2. OPTIONS: Exactly 4 options (A, B, C, D). Exactly 1 is correct.\n"
+                    f"3. DECEPTIVE: Wrong answers must be plausible near-misses a beginner would pick.\n"
+                    f"4. Avoid recently covered topics: {past_topics[-10:] if past_topics else 'None'}."
+                )
+                system_prompt = "You are an expert Python educator creating deceptive, educational 'What's the output?' quiz Shorts."
+                fallback_pool = PYTHON_QUIZ_POOL
+            else:
+                prompt = (
+                    f"Generate 3 distinct multiple-choice {lang_profile.display_name} 'What's the output?' quiz questions.\n"
+                    f"Target audience: {target_audience} on YouTube Shorts in niche '{niche}'.\n"
+                    f"CRITICAL: DO NOT use any of these recently covered concepts: [{excluded_tags_str}].\n"
+                    f"RULES:\n"
+                    f"1. CODE: Clean, readable at a glance, strictly 3 to 7 lines max. Valid {lang_profile.display_name} syntax (e.g. valid main() function with standard output).\n"
+                    f"2. OPTIONS: Exactly 4 options (A, B, C, D). Exactly 1 is correct.\n"
+                    f"3. DECEPTIVE: Wrong answers must be plausible near-misses a beginner would pick.\n"
+                    f"4. Avoid recently covered topics: {past_topics[-10:] if past_topics else 'None'}."
+                )
+                system_prompt = f"You are an expert {lang_profile.display_name} educator creating deceptive, educational 'What's the output?' quiz Shorts."
+                fallback_pool = C_QUIZ_POOL if lang_profile.slug == "c" else PYTHON_QUIZ_POOL
+
+            schema = {
+                "type": "object",
+                "properties": {
+                    "candidates": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "topic": {"type": "string"},
+                                "angle": {"type": "string"},
+                                "concept_tag": {"type": "string"},
+                                "question_code": {"type": "string"},
+                                "options": {
+                                    "type": "array",
+                                    "items": {"type": "string"}
+                                },
+                                "correct_option": {"type": "string"},
+                                "explanation": {"type": "string"}
+                            },
+                            "required": ["topic", "question_code", "options", "correct_option", "explanation"]
+                        }
+                    }
+                },
+                "required": ["candidates"]
+            }
 
         candidates = []
         if self.ai:
@@ -441,7 +707,7 @@ class IdeaAgent(BaseAgent):
                 response = await self.ai.generate_structured(
                     prompt=prompt,
                     response_schema=schema,
-                    system_prompt="You are an expert Python educator creating deceptive, educational 'What's the output?' quiz Shorts."
+                    system_prompt=system_prompt
                 )
                 if response and isinstance(response, dict):
                     candidates = response.get("candidates", [])
@@ -455,13 +721,10 @@ class IdeaAgent(BaseAgent):
         ]
 
         if not valid_ai_candidates:
-            # Fallback to rich curated pool: filter out concepts used in recent memory
-            available_pool = [q for q in PYTHON_QUIZ_POOL if q["concept_tag"] not in recent_concepts[:25]]
+            available_pool = [q for q in fallback_pool if q.get("concept_tag") not in recent_concepts[:25]]
             if not available_pool:
-                # If all concepts have been covered across weeks, exclude only the 10 most recent
-                available_pool = [q for q in PYTHON_QUIZ_POOL if q["concept_tag"] not in recent_concepts[:10]]
-            candidates = list(available_pool or PYTHON_QUIZ_POOL)
-            # Randomize pool order to ensure different question every time
+                available_pool = [q for q in fallback_pool if q.get("concept_tag") not in recent_concepts[:10]]
+            candidates = list(available_pool or fallback_pool)
             random.shuffle(candidates)
         else:
             candidates = valid_ai_candidates
@@ -477,8 +740,7 @@ class IdeaAgent(BaseAgent):
                 if sim > max_sim:
                     max_sim = sim
 
-            # Also check against past snippets
-            code_str = cand.get("question_code", "").strip()
+            code_str = (cand.get("question_code") or cand.get("quote_text") or "").strip()
             if code_str and any(code_str == p for p in past_snippets):
                 max_sim = 1.0
 
@@ -488,29 +750,71 @@ class IdeaAgent(BaseAgent):
 
         chosen = best_candidate or candidates[0]
         chosen_topic = chosen.get("topic", "")
+        concept_tag = chosen.get("concept_tag") or f"{arch}_concept"
 
-        # Default quiz properties if cand was from legacy AI format
-        concept_tag = chosen.get("concept_tag") or "python_basics"
-        default_quiz = next((q for q in PYTHON_QUIZ_POOL if q["concept_tag"] == concept_tag), PYTHON_QUIZ_POOL[0])
-        question_code = chosen.get("question_code") or default_quiz["question_code"]
-        options = chosen.get("options") or default_quiz["options"]
-        correct_option = chosen.get("correct_option") or default_quiz["correct_option"]
-        explanation = chosen.get("explanation") or default_quiz["explanation"]
+        default_item = next((q for q in fallback_pool if q.get("concept_tag") == concept_tag), fallback_pool[0])
 
-        result = {
-            "topic": chosen_topic,
-            "angle": chosen.get("angle", "Python quiz challenge"),
-            "why_viral": chosen.get("why_viral", "High retention quiz"),
-            "concept_tag": concept_tag,
-            "question_code": question_code,
-            "options": options,
-            "correct_option": correct_option,
-            "explanation": explanation,
-            "content_format": "quiz_card",
-            "similarity_score": round(lowest_similarity, 3),
-            "hash": compute_content_hash(question_code)
-        }
+        if arch == "quote_card":
+            quote_text = chosen.get("quote_text") or default_item.get("quote_text", "")
+            author = chosen.get("author") or default_item.get("author", "Wisdom")
+            explanation = chosen.get("explanation") or default_item.get("explanation", "")
+            result = {
+                "topic": chosen_topic,
+                "angle": chosen.get("angle", "Life wisdom and motivation"),
+                "why_viral": "High emotion and relatable wisdom",
+                "concept_tag": concept_tag,
+                "question_code": f'"{quote_text}"\n— {author}',
+                "quote_text": quote_text,
+                "quote_author": author,
+                "options": [],
+                "correct_option": "",
+                "explanation": explanation,
+                "content_format": "quote_card",
+                "language": "quotes",
+                "similarity_score": round(lowest_similarity, 3),
+                "hash": compute_content_hash(quote_text)
+            }
+        elif arch == "trivia_quiz":
+            q_code = chosen.get("question_code") or default_item.get("question_code", "What is the answer?")
+            options = chosen.get("options") or default_item.get("options", ["A", "B", "C", "D"])
+            correct_option = chosen.get("correct_option") or default_item.get("correct_option", "A")
+            explanation = chosen.get("explanation") or default_item.get("explanation", "")
+            result = {
+                "topic": chosen_topic,
+                "angle": chosen.get("angle", "Engaging trivia challenge"),
+                "why_viral": "High curiosity trivia riddle",
+                "concept_tag": concept_tag,
+                "question_code": q_code,
+                "question_text": q_code,
+                "options": options,
+                "correct_option": correct_option,
+                "explanation": explanation,
+                "content_format": "trivia_quiz",
+                "language": "trivia",
+                "similarity_score": round(lowest_similarity, 3),
+                "hash": compute_content_hash(q_code)
+            }
+        else:
+            lang_profile = archetype_info.lang_profile or detect_language_from_niche(niche)
+            question_code = chosen.get("question_code") or default_item["question_code"]
+            options = chosen.get("options") or default_item["options"]
+            correct_option = chosen.get("correct_option") or default_item["correct_option"]
+            explanation = chosen.get("explanation") or default_item["explanation"]
+            result = {
+                "topic": chosen_topic,
+                "angle": chosen.get("angle", f"{lang_profile.display_name} quiz challenge"),
+                "why_viral": "High retention quiz",
+                "concept_tag": concept_tag,
+                "question_code": question_code,
+                "options": options,
+                "correct_option": correct_option,
+                "explanation": explanation,
+                "content_format": "quiz_card",
+                "language": lang_profile.slug,
+                "similarity_score": round(lowest_similarity, 3),
+                "hash": compute_content_hash(question_code)
+            }
 
         await self._record_content_memory(result)
-        self.log(f"Selected Quiz Topic: '{chosen_topic}' (concept: {concept_tag}, max similarity: {lowest_similarity:.2f})")
+        self.log(f"Selected Concept: '{chosen_topic}' (format: {result['content_format']}, concept: {concept_tag}, max similarity: {lowest_similarity:.2f})")
         return result

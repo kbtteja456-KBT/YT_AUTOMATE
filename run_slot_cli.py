@@ -222,11 +222,12 @@ async def run_real_pipeline(
     now_utc = datetime.now(timezone.utc)
     stale_lease_seconds = 15 * 60  # 15 minutes lease
 
-    # Resolve workspace niche and enforce trial quota if tenant
+    # Resolve workspace niche and verify eligibility if tenant
     workspace_niche = "Python Quiz #Shorts"
     if workspace_id:
         if not dry_run:
-            allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+            from backend.app.core.ledger import can_workspace_generate_sync
+            allowed, reason = can_workspace_generate_sync(workspace_id)
             if not allowed:
                 log_run(f"❌ [TRIAL QUOTA] Workspace {workspace_id} cannot publish: {reason}")
                 return {"status": "QUOTA_EXHAUSTED", "reason": reason}
@@ -288,6 +289,12 @@ async def run_real_pipeline(
             return {"status": "ALREADY_RUNNING", "job_id": str(existing_job["_id"])}
 
     # 3. Atomically acquire/claim the job lock in MongoDB
+    if workspace_id and not dry_run:
+        allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+        if not allowed:
+            log_run(f"❌ [TRIAL QUOTA] Workspace {workspace_id} cannot acquire quota: {reason}")
+            return {"status": "QUOTA_EXHAUSTED", "reason": reason}
+
     if existing_job:
         job_id = str(existing_job["_id"])
         db.publishing_jobs.update_one(
@@ -420,72 +427,97 @@ async def main():
     today_str = now_local.strftime("%Y-%m-%d")
     hour = now_local.hour
 
-    # Auto-detect and cloud catch-up logic
-    slot = args.slot
-    if slot == 0:
-        # Check morning vs evening slots with automatic catch-up
+    is_evening_window = (hour == 17 and now_local.minute >= 40) or hour >= 18
+    target_slot = args.slot
+    owner_slot = None
+
+    if target_slot == 0:
+        target_slot = 2 if is_evening_window else 1
         slot1_done = is_slot_published_today(1, today_str)
         slot2_done = is_slot_published_today(2, today_str)
 
-        if (hour == 17 and now_local.minute >= 40) or hour >= 18:
-            # Evening active window (17:40 - 23:59 IST)
+        if is_evening_window:
             if not slot2_done:
-                slot = 2
-                log_run(f"⏰ [CATCH-UP/DUE] Evening Slot 2 (06:00 PM IST) is pending. Launching Slot 2.")
+                owner_slot = 2
+                log_run(f"⏰ [CATCH-UP/DUE] Evening Slot 2 (06:00 PM IST) is pending for owner. Launching Slot 2.")
             elif not slot1_done:
-                # Catch up missed morning slot in the evening window!
-                slot = 1
-                log_run(f"⏰ [CATCH-UP] Slot 2 published, but morning Slot 1 was missed earlier today. Catching up Slot 1 now.")
+                owner_slot = 1
+                log_run(f"⏰ [CATCH-UP] Slot 2 published, but morning Slot 1 was missed earlier today for owner. Catching up Slot 1 now.")
             else:
-                log_run(f"✅ Both Slot 1 and Slot 2 are already published for today ({today_str}). Standing by.")
-                sys.exit(0)
+                log_run(f"✅ Both Slot 1 and Slot 2 are already published for owner today ({today_str}).")
         else:
-            # Morning active window / Pre-morning (00:00 - 17:39 IST)
             if not slot1_done:
-                slot = 1
-                log_run(f"⏰ [CATCH-UP/DUE] Morning Slot 1 (07:00 AM IST) is pending. Launching Slot 1.")
+                owner_slot = 1
+                log_run(f"⏰ [CATCH-UP/DUE] Morning Slot 1 (07:00 AM IST) is pending for owner. Launching Slot 1.")
             else:
-                log_run(f"✅ Morning Slot 1 already published today. Evening Slot 2 will trigger at 18:00 IST. Standing by.")
-                sys.exit(0)
+                log_run(f"✅ Morning Slot 1 already published for owner today ({today_str}).")
+    else:
+        owner_slot = target_slot
 
-    slot_title = "Morning Slot 1 (07:00 AM IST)" if slot == 1 else "Evening Slot 2 (06:00 PM IST)"
+    slot_title = "Morning Slot 1 (07:00 AM IST)" if target_slot == 1 else "Evening Slot 2 (06:00 PM IST)"
     print(
         f"\n============================================================\n"
         f"[STAGE: TRIGGERED] {slot_title} - Date: {today_str} ({now_local.strftime('%H:%M:%S')} IST)\n"
-        f"Mode: {'DRY RUN' if args.dry_run else 'PRODUCTION'} | Force: {args.force}\n"
+        f"Mode: {'DRY RUN' if args.dry_run else 'PRODUCTION'} | Force: {args.force} | Include Tenants: {args.include_tenants}\n"
         f"============================================================"
     )
 
-    try:
-        result = await run_real_pipeline(
-            slot_index=slot,
-            custom_topic=args.topic,
-            force=args.force,
-            dry_run=args.dry_run,
-            workspace_id=args.workspace_id
-        )
-        status = result.get("status")
-        if status in ("ALREADY_PUBLISHED", "ALREADY_RUNNING"):
-            log_run(f"Pipeline finished with status: {status}")
-        elif status == "DRY_RUN_COMPLETED":
-            log_run("✅ Dry run verification finished successfully.")
-        elif status == "PUBLISHED":
-            yt_url = result.get("youtube_url")
-            log_run(f"✅ SUCCESS: Short published to YouTube → {yt_url}")
-        else:
-            log_run(f"Pipeline finished with status: {status}")
+    # 1. Execute Owner pipeline (or targeted workspace)
+    if args.workspace_id:
+        try:
+            res = await run_real_pipeline(
+                slot_index=target_slot,
+                custom_topic=args.topic,
+                force=args.force,
+                dry_run=args.dry_run,
+                workspace_id=args.workspace_id
+            )
+            log_run(f"Target workspace {args.workspace_id} finished with status: {res.get('status')}")
+        except Exception as e:
+            log_run(f"❌ Target workspace execution failed: {e}")
+            logger.exception("Target Workspace Pipeline Error")
+    elif owner_slot is not None or args.force:
+        exec_slot = owner_slot or target_slot
+        try:
+            result = await run_real_pipeline(
+                slot_index=exec_slot,
+                custom_topic=args.topic,
+                force=args.force,
+                dry_run=args.dry_run,
+                workspace_id=None
+            )
+            status = result.get("status")
+            if status in ("ALREADY_PUBLISHED", "ALREADY_RUNNING"):
+                log_run(f"Owner pipeline finished with status: {status}")
+            elif status == "DRY_RUN_COMPLETED":
+                log_run("✅ Dry run verification finished successfully.")
+            elif status == "PUBLISHED":
+                yt_url = result.get("youtube_url")
+                log_run(f"✅ SUCCESS: Short published to YouTube → {yt_url}")
+            else:
+                log_run(f"Owner pipeline finished with status: {status}")
+        except Exception as e:
+            log_run(f"❌ Owner pipeline encountered error: {e}")
+            logger.exception("Owner Cloud Pipeline Error")
+    else:
+        log_run("Owner publishing skipped (all active slots already published for owner).")
 
-        if args.include_tenants and not args.workspace_id:
+    # 2. Process all tenant workspaces if requested
+    if args.include_tenants and not args.workspace_id:
+        try:
             from backend.app.core.cron_scheduler import process_tenant_workspaces_for_slot
-            log_run("Scanning and processing active tenant workspaces...")
-            await process_tenant_workspaces_for_slot(slot, today_str)
+            log_run(f"Scanning and processing active tenant workspaces for Slot {target_slot}...")
+            await process_tenant_workspaces_for_slot(target_slot, today_str)
 
-        sys.exit(0)
+            # In evening window, also check if any tenant missed morning Slot 1 catch-up
+            if target_slot == 2 and args.slot == 0:
+                log_run("Checking active tenant workspaces for morning Slot 1 catch-up...")
+                await process_tenant_workspaces_for_slot(1, today_str)
+        except Exception as t_err:
+            log_run(f"❌ Tenant workspaces processing encountered error: {t_err}")
+            logger.exception("Tenant Cloud Pipeline Error")
 
-    except Exception as e:
-        log_run(f"❌ PIPELINE EXECUTION FAILED: {e}")
-        logger.exception("Cloud Pipeline Error")
-        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == "__main__":

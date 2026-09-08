@@ -51,6 +51,11 @@ on:
         required: false
         default: false
         type: boolean
+      include_tenants:
+        description: 'Publish for all active tenant users with connected YouTube channels'
+        required: false
+        default: true
+        type: boolean
       check_health:
         description: 'Health check only: verify MongoDB Atlas, YouTube OAuth, OpenRouter, and FFmpeg'
         required: false
@@ -131,7 +136,12 @@ jobs:
           fi
 
           # 2. Parse flags for pipeline execution
-          EXTRA_FLAGS=""
+          EXTRA_FLAGS="--include-tenants"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ github.event.inputs.include_tenants }}" = "false" ]; then
+              EXTRA_FLAGS=""
+            fi
+          fi
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             EXTRA_FLAGS="$EXTRA_FLAGS --force"
           fi
@@ -155,5 +165,5 @@ jobs:
             python run_slot_cli.py --slot $SLOT $EXTRA_FLAGS
           else
             echo "Autonomous Cloud Scheduled Cron Triggered (IST Schedule)..."
-            python run_slot_cli.py --slot 0
+            python run_slot_cli.py --slot 0 --include-tenants
           fi

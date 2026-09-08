@@ -26,7 +26,8 @@ class MediaAgent(BaseAgent):
                 "question_code": script.question_code,
                 "options": script.options,
                 "correct_option": script.correct_option,
-                "explanation": script.explanation
+                "explanation": script.explanation,
+                "language": getattr(script, "language", "python"),
             }
 
         # Query MongoDB content_ideas for the active job or latest record
@@ -64,14 +65,18 @@ class MediaAgent(BaseAgent):
 
         if has_quiz_scenes:
             quiz_data = await self._fetch_quiz_data(job_id, script)
-            self.log(f"Rendering 1080x1920 hand-drawn quiz cards for job {job_id}...")
+            card_lang = getattr(script, "language", None) or quiz_data.get("language", "python")
+            card_format = getattr(script, "content_format", None) or quiz_data.get("content_format", "quiz_card")
+            self.log(f"Rendering 1080x1920 cards for job {job_id} ({card_lang}, format: {card_format})...")
             q_card_path, r_card_path = QuizCardRenderer.render_quiz_cards(
                 question_code=quiz_data.get("question_code", "print('Python')"),
                 options=quiz_data.get("options", ["A) None", "B) 0", "C) Output", "D) Error"]),
                 correct_option=quiz_data.get("correct_option", "A"),
                 explanation=quiz_data.get("explanation", "Python evaluates code step-by-step."),
                 output_dir=target_dir,
-                job_id=job_id
+                job_id=job_id,
+                language=card_lang,
+                content_format=card_format
             )
 
         updated_scenes: list[Scene] = []

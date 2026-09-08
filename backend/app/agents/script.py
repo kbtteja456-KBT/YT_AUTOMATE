@@ -3,6 +3,7 @@
 from typing import Any
 from backend.app.agents.base import BaseAgent
 from backend.app.models.video import Script, ResearchReport
+from backend.app.core.language_detector import detect_language_from_niche
 
 
 class ScriptAgent(BaseAgent):
@@ -18,21 +19,98 @@ class ScriptAgent(BaseAgent):
         target_duration_sec: float = 45.0
     ) -> Script:
         """Construct narration script with explicit time-stamped retention sections."""
-        is_quiz = (getattr(research, "content_format", "general") == "quiz_card")
-        eff_duration = 24.0 if is_quiz else target_duration_sec
+        c_format = getattr(research, "content_format", "general")
+        is_quiz = (c_format in ("quiz_card", "trivia_quiz"))
+        is_quote = (c_format == "quote_card")
+        eff_duration = 24.0 if (is_quiz or is_quote) else target_duration_sec
 
-        self.log(f"Scripting narration for '{topic}' (format: {'quiz_card' if is_quiz else 'general'}, {eff_duration}s)...")
+        lang_profile = detect_language_from_niche(research.niche)
+        lang_name = lang_profile.display_name
 
-        if is_quiz:
-            # Deterministic, punchy structure for Python quiz Shorts
-            hook_text = hook.strip() if hook else "Would you get this Python question right?"
+        self.log(f"Scripting narration for '{topic}' (format: {c_format}, {eff_duration}s)...")
+
+        # -------------------------------------------------------------
+        # 1. QUOTE CARD FORMAT
+        # -------------------------------------------------------------
+        if is_quote:
+            quote_str = research.quote_text or research.question_code or "Wisdom speaks quietly."
+            author_str = research.quote_author or "Unknown"
+            expl_str = research.explanation or "Master your mind and guard your time."
+            hook_text = hook.strip() if hook else f"A quote from {author_str} that will change how you think."
+            prob_text = f"\"{quote_str}\""
+            val_text = f"Take a second to absorb that. {expl_str}"
+            payoff_text = "Most people drift through life on autopilot. Choose intention instead."
+            cta_text = "Double tap if you needed this reminder today, and subscribe for daily wisdom."
+            full_narration = f"{hook_text} {prob_text} {val_text} {payoff_text} {cta_text}"
+            return Script(
+                topic=topic,
+                hook=hook_text,
+                problem=prob_text,
+                value=val_text,
+                payoff=payoff_text,
+                cta=cta_text,
+                full_narration=full_narration,
+                target_duration_sec=eff_duration,
+                word_count=len(full_narration.split()),
+                content_format="quote_card",
+                question_code=research.question_code,
+                quote_text=quote_str,
+                quote_author=author_str,
+                options=[],
+                correct_option="",
+                explanation=expl_str,
+                concept_tag=research.concept_tag,
+                verified_output=author_str,
+                language="quotes"
+            )
+
+        # -------------------------------------------------------------
+        # 2. TRIVIA QUIZ FORMAT
+        # -------------------------------------------------------------
+        if c_format == "trivia_quiz":
+            q_text = research.question_text or research.question_code or "Can you answer this?"
             corr_opt = research.correct_option or "A"
-            expl = research.explanation or "Python evaluates expressions step-by-step."
+            expl = research.explanation or "Think carefully."
+            hook_text = hook.strip() if hook else "Only 1 in 10 people get this question right!"
+            prob_text = f"{q_text} Pause the video now to think!"
+            val_text = "Watch out, the obvious answer might trick you."
+            payoff_text = f"The correct answer is Option {corr_opt}! {expl}"
+            cta_text = "Comment what you got and subscribe for daily trivia quizzes!"
+            full_narration = f"{hook_text} {prob_text} {val_text} {payoff_text} {cta_text}"
+            return Script(
+                topic=topic,
+                hook=hook_text,
+                problem=prob_text,
+                value=val_text,
+                payoff=payoff_text,
+                cta=cta_text,
+                full_narration=full_narration,
+                target_duration_sec=eff_duration,
+                word_count=len(full_narration.split()),
+                content_format="trivia_quiz",
+                question_code=research.question_code,
+                question_text=q_text,
+                options=research.options,
+                correct_option=corr_opt,
+                explanation=expl,
+                concept_tag=research.concept_tag,
+                verified_output=corr_opt,
+                language="trivia"
+            )
+
+        # -------------------------------------------------------------
+        # 3. CODE QUIZ FORMAT (Python for Owner, Language for Tenants)
+        # -------------------------------------------------------------
+        if is_quiz:
+            # Deterministic, punchy structure for quiz Shorts
+            hook_text = hook.strip() if hook else f"Would you get this {lang_name} question right?"
+            corr_opt = research.correct_option or "A"
+            expl = research.explanation or f"{lang_name} evaluates expressions step-by-step."
 
             prompt = (
                 f"Topic: '{topic}'.\n"
                 f"Hook: '{hook_text}'.\n"
-                f"Python Code:\n{research.question_code}\n"
+                f"{lang_name} Code:\n{research.question_code}\n"
                 f"Options: {research.options}\n"
                 f"Correct Option: {corr_opt}\n"
                 f"Explanation: {expl}\n\n"
@@ -41,7 +119,7 @@ class ScriptAgent(BaseAgent):
                 f"2. 'problem': 3-8s read code focus and prompt viewer to pause.\n"
                 f"3. 'value': 8-15s remind viewer to think carefully before the reveal.\n"
                 f"4. 'payoff': 15-20s state that correct answer is {corr_opt} with one-sentence explanation.\n"
-                f"5. 'cta': 20-24s 'Comment your answer before you scroll, and follow for daily Python quizzes.'"
+                f"5. 'cta': 20-24s 'Comment your answer before you scroll, and follow for daily {lang_name} quizzes.'"
             )
             schema = {
                 "type": "object",
@@ -61,12 +139,12 @@ class ScriptAgent(BaseAgent):
                 problem_text = resp.get("problem", "What will this code print? Pause now to think.").strip()
                 value_text = resp.get("value", "Look closely at how the values are being updated.").strip()
                 payoff_text = resp.get("payoff", f"The correct answer is {corr_opt}! {expl}").strip()
-                cta_text = resp.get("cta", "Comment what you got and follow for daily Python quizzes!").strip()
+                cta_text = resp.get("cta", f"Comment what you got and follow for daily {lang_name} quizzes!").strip()
             except Exception:
                 problem_text = "What will this code print? Pause if you need a moment."
                 value_text = "Watch out for common beginner misconceptions."
                 payoff_text = f"The correct answer is {corr_opt}! {expl}"
-                cta_text = "Comment your answer before you scroll and follow for daily quizzes!"
+                cta_text = f"Comment your answer before you scroll and follow for daily {lang_name} quizzes!"
 
             full_narration = f"{hook_text} {problem_text} {value_text} {payoff_text} {cta_text}"
             script = Script(
@@ -82,10 +160,11 @@ class ScriptAgent(BaseAgent):
                 content_format="quiz_card",
                 question_code=research.question_code,
                 options=research.options,
-                correct_option=research.correct_option,
-                explanation=research.explanation,
+                correct_option=corr_opt,
+                explanation=expl,
                 concept_tag=research.concept_tag,
-                verified_output=research.verified_output
+                verified_output=research.verified_output,
+                language=lang_profile.slug
             )
             self.log(f"Quiz script finalized: {script.word_count} words (~{eff_duration}s)")
             return script
