@@ -25,9 +25,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <nav style={{
         padding: '16px 24px',
         borderBottom: '1px solid rgba(245, 158, 11, 0.15)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        backgroundColor: 'rgba(15, 20, 28, 0.82)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        backgroundColor: 'rgba(15, 20, 28, 0.45)',
         position: 'sticky',
         top: 0,
         zIndex: 50
@@ -140,14 +140,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         boxSizing: 'border-box'
       }}>
         <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.78)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(245, 158, 11, 0.25)',
+          backgroundColor: 'rgba(15, 20, 28, 0.45)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(245, 158, 11, 0.28)',
           borderRadius: '24px',
           padding: '52px 36px',
           textAlign: 'center',
-          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.65), 0 0 32px rgba(245, 158, 11, 0.08)',
+          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.55), 0 0 32px rgba(245, 158, 11, 0.08)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center'
@@ -253,13 +253,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         boxSizing: 'border-box'
       }}>
         <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          backgroundColor: 'rgba(15, 20, 28, 0.48)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid rgba(245, 158, 11, 0.25)',
           borderRadius: '24px',
           padding: '40px 36px',
-          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.6), 0 0 24px rgba(245, 158, 11, 0.08)'
+          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(245, 158, 11, 0.08)'
         }}>
           <div style={{
             display: 'inline-block',
@@ -295,13 +295,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             Why Auto YouTube Video Bot Requests YouTube API Access:
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-            <div style={{ backgroundColor: 'rgba(22, 27, 34, 0.85)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <div style={{ backgroundColor: 'rgba(22, 27, 34, 0.5)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
               <h4 style={{ color: '#fbbf24', margin: '0 0 8px 0', fontSize: '15px' }}>1. Automated Video Publishing</h4>
               <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
                 Uses the <code style={{ color: '#34d399' }}>youtube.upload</code> scope to upload user-approved video files directly to the user's connected YouTube channel without requiring manual file downloads and re-uploads.
               </p>
             </div>
-            <div style={{ backgroundColor: 'rgba(22, 27, 34, 0.85)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+            <div style={{ backgroundColor: 'rgba(22, 27, 34, 0.5)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
               <h4 style={{ color: '#34d399', margin: '0 0 8px 0', fontSize: '15px' }}>2. Channel Verification & Analytics</h4>
               <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
                 Uses the <code style={{ color: '#fbbf24' }}>youtube.readonly</code> scope to confirm channel identity and display recent subscriber counts and view analytics in the creator's private workspace dashboard.
@@ -342,8 +342,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         boxSizing: 'border-box'
       }}>
         <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.8)',
+          backgroundColor: 'rgba(15, 20, 28, 0.45)',
           backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid rgba(245, 158, 11, 0.2)',
           borderRadius: '16px',
           padding: '28px'
@@ -358,8 +359,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
 
         <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.8)',
+          backgroundColor: 'rgba(15, 20, 28, 0.45)',
           backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid rgba(16, 185, 129, 0.2)',
           borderRadius: '16px',
           padding: '28px'
@@ -374,8 +376,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
 
         <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.8)',
+          backgroundColor: 'rgba(15, 20, 28, 0.45)',
           backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid rgba(245, 158, 11, 0.2)',
           borderRadius: '16px',
           padding: '28px'
@@ -394,8 +397,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <footer style={{
         borderTop: '1px solid rgba(245, 158, 11, 0.15)',
         padding: '36px 24px',
-        backgroundColor: 'rgba(9, 12, 16, 0.92)',
-        backdropFilter: 'blur(20px)',
+        backgroundColor: 'rgba(9, 12, 16, 0.55)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         fontSize: '13px',
         color: '#8b949e'
       }}>
