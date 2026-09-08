@@ -185,7 +185,7 @@ export const App: React.FC = () => {
   // Public legal compliance routes accessible at any time
   if (publicView === 'privacy') {
     return (
-      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+      <div className="app-container" style={{ position: 'relative', width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'hidden', overflowY: 'auto' }}>
         <CircuitStormCanvas />
         <PrivacyPage
           onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
@@ -196,7 +196,7 @@ export const App: React.FC = () => {
 
   if (publicView === 'terms') {
     return (
-      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+      <div className="app-container" style={{ position: 'relative', width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'hidden', overflowY: 'auto' }}>
         <CircuitStormCanvas />
         <TermsPage
           onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
@@ -209,7 +209,7 @@ export const App: React.FC = () => {
   if (!isAuthChecking && !currentUser) {
     if (publicView === 'auth') {
       return (
-        <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+        <div className="app-container" style={{ position: 'relative', width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'hidden', overflowY: 'auto' }}>
           <CircuitStormCanvas />
           <AuthPage
             onAuthenticated={handleAuthenticated}
@@ -220,7 +220,7 @@ export const App: React.FC = () => {
     }
 
     return (
-      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+      <div className="app-container" style={{ position: 'relative', width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'hidden', overflowY: 'auto' }}>
         <CircuitStormCanvas />
         <LandingPage
           onLoginClick={() => navigateTo('auth')}

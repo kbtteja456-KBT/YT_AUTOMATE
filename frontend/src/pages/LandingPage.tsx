@@ -13,72 +13,89 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 }) => {
   return (
     <div style={{
+      width: '100%',
       minHeight: '100vh',
       background: 'transparent',
       color: '#e6edf3',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       position: 'relative',
       zIndex: 10,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      boxSizing: 'border-box',
       overflowX: 'hidden'
     }}>
-      {/* Top Navigation */}
-      <nav style={{
-        padding: '16px 24px',
-        borderBottom: '1px solid rgba(245, 158, 11, 0.15)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        backgroundColor: 'rgba(15, 20, 28, 0.45)',
+      {/* 1. NAVBAR - Horizontally Centered Container */}
+      <header style={{
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
         position: 'sticky',
         top: 0,
-        zIndex: 50
+        zIndex: 50,
+        padding: '16px 0',
+        boxSizing: 'border-box'
       }}>
-        <div style={{
-          maxWidth: '1200px',
+        <nav style={{
+          width: 'min(100% - 32px, 1200px)',
           margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          width: '100%'
+          flexWrap: 'wrap',
+          gap: '16px',
+          padding: '12px 24px',
+          borderRadius: '16px',
+          border: '1px solid rgba(245, 158, 11, 0.22)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          backgroundColor: 'rgba(15, 20, 28, 0.48)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
+          boxSizing: 'border-box'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {/* Brand Identity */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <img
               src="/favicon.png"
               alt="Auto YouTube Video Bot Logo"
               style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '12px',
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
                 objectFit: 'contain',
-                boxShadow: '0 0 18px rgba(245, 158, 11, 0.45)',
+                boxShadow: '0 0 16px rgba(245, 158, 11, 0.4)',
                 border: '1px solid rgba(245, 158, 11, 0.3)'
               }}
             />
             <div>
               <h1 style={{
                 fontFamily: "'Outfit', sans-serif",
-                fontSize: '20px',
+                fontSize: '18px',
                 fontWeight: 800,
-                letterSpacing: '-0.5px',
+                letterSpacing: '-0.3px',
                 margin: 0,
                 background: 'linear-gradient(to right, #ffffff, #fbbf24)',
                 WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
+                WebkitTextFillColor: 'transparent',
+                lineHeight: 1.2
               }}>
                 Auto YouTube Video Bot
               </h1>
-              <span style={{ fontSize: '11px', color: '#34d399', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+              <span style={{ fontSize: '10px', color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
                 AI Video Synthesis Engine
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          {/* Navigation Links & CTA */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
             <a
               href="#purpose"
               style={{
                 color: '#fbbf24',
                 textDecoration: 'none',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: 600,
                 transition: 'color 0.2s'
               }}
@@ -90,9 +107,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#8b949e',
+                color: '#94a3b8',
                 cursor: 'pointer',
-                fontSize: '14px',
+                fontSize: '13px',
+                fontWeight: 500,
                 transition: 'color 0.2s'
               }}
             >
@@ -103,9 +121,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#8b949e',
+                color: '#94a3b8',
                 cursor: 'pointer',
-                fontSize: '14px',
+                fontSize: '13px',
+                fontWeight: 500,
                 transition: 'color 0.2s'
               }}
             >
@@ -118,9 +137,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 color: '#090c10',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '10px 22px',
+                padding: '9px 20px',
                 fontWeight: 800,
-                fontSize: '14px',
+                fontSize: '13px',
                 cursor: 'pointer',
                 boxShadow: '0 4px 16px rgba(245, 158, 11, 0.35)',
                 transition: 'transform 0.15s, box-shadow 0.15s'
@@ -129,33 +148,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Sign In / Register
             </button>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </header>
 
-      {/* Hero Section inside Frosted Glass Card for Crisp Readability */}
+      {/* 2. HERO SECTION - Perfectly Centered in Viewport */}
       <section style={{
-        maxWidth: '1000px',
-        margin: '40px auto 48px auto',
-        padding: '0 24px',
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        margin: '28px 0 40px 0',
         boxSizing: 'border-box'
       }}>
         <div style={{
+          width: 'min(100% - 32px, 1200px)',
+          margin: '0 auto',
           backgroundColor: 'rgba(15, 20, 28, 0.45)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid rgba(245, 158, 11, 0.28)',
           borderRadius: '24px',
-          padding: '52px 36px',
+          padding: 'clamp(36px, 5vw, 56px) clamp(20px, 4vw, 48px)',
           textAlign: 'center',
           boxShadow: '0 24px 64px rgba(0, 0, 0, 0.55), 0 0 32px rgba(245, 158, 11, 0.08)',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center'
+          alignItems: 'center',
+          boxSizing: 'border-box'
         }}>
           {/* Compliance Badge */}
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '8px',
             backgroundColor: 'rgba(245, 158, 11, 0.12)',
             border: '1px solid rgba(245, 158, 11, 0.35)',
@@ -164,16 +188,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             fontSize: '13px',
             fontWeight: 600,
             color: '#fbbf24',
-            marginBottom: '24px'
+            marginBottom: '24px',
+            maxWidth: '100%',
+            textAlign: 'center'
           }}>
             <span>⚡</span>
             <span>Official YouTube API Services Developer Compliance</span>
           </div>
 
-          {/* Centered Crisp Heading */}
+          {/* Centered Main Heading */}
           <h2 style={{
             fontFamily: "'Outfit', sans-serif",
-            fontSize: 'clamp(28px, 4vw, 46px)',
+            fontSize: 'clamp(28px, 4.2vw, 46px)',
             lineHeight: 1.22,
             fontWeight: 800,
             letterSpacing: '-1px',
@@ -181,13 +207,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             margin: '0 auto 20px auto',
-            maxWidth: '820px',
+            maxWidth: '860px',
             textAlign: 'center'
           }}>
             Autonomous YouTube Shorts Creation &amp; Scheduled Publishing
           </h2>
 
-          {/* Centered Descriptive Paragraph */}
+          {/* Centered Description */}
           <p style={{
             fontSize: '16px',
             color: '#cbd5e1',
@@ -199,7 +225,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <strong style={{ color: '#fbbf24' }}>Auto YouTube Video Bot</strong> is a creator automation suite that connects securely to your authorized YouTube channel, creates high-retention vertical short videos using intelligent multi-agent scripting, voice synthesis, and dynamic media rendering, and publishes on your automated schedule.
           </p>
 
-          {/* Perfectly Aligned CTA Buttons */}
+          {/* Symmetrically Centered Action Buttons */}
           <div style={{
             display: 'flex',
             justifyContent: 'center',
@@ -245,21 +271,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* Explicit App Purpose Section for Google Reviewers */}
+      {/* 3. ABOUT THIS APPLICATION SECTION - Identical Horizontal Alignment */}
       <section id="purpose" style={{
-        maxWidth: '1000px',
-        margin: '0 auto 60px auto',
-        padding: '0 24px',
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        marginBottom: '40px',
         boxSizing: 'border-box'
       }}>
         <div style={{
+          width: 'min(100% - 32px, 1200px)',
+          margin: '0 auto',
           backgroundColor: 'rgba(15, 20, 28, 0.48)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid rgba(245, 158, 11, 0.25)',
           borderRadius: '24px',
-          padding: '40px 36px',
-          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(245, 158, 11, 0.08)'
+          padding: 'clamp(28px, 4vw, 44px) clamp(20px, 4vw, 40px)',
+          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.5), 0 0 24px rgba(245, 158, 11, 0.08)',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             display: 'inline-block',
@@ -331,88 +361,99 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* Feature Pillars */}
+      {/* 4. FEATURE PILLARS - Identical Width & Alignment */}
       <section style={{
-        maxWidth: '1000px',
-        margin: '0 auto',
-        padding: '0 24px 80px auto',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: '20px',
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        marginBottom: '60px',
         boxSizing: 'border-box'
       }}>
         <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.45)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(245, 158, 11, 0.2)',
-          borderRadius: '16px',
-          padding: '28px'
+          width: 'min(100% - 32px, 1200px)',
+          margin: '0 auto',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '20px',
+          boxSizing: 'border-box'
         }}>
-          <div style={{ fontSize: '28px', marginBottom: '14px' }}>🚀</div>
-          <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fbbf24', marginBottom: '10px' }}>
-            Direct YouTube Uploads
-          </h3>
-          <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
-            Seamlessly publish 1080x1920 vertical shorts directly to your connected YouTube channel using authorized YouTube API Services.
-          </p>
-        </div>
+          <div style={{
+            backgroundColor: 'rgba(15, 20, 28, 0.45)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(245, 158, 11, 0.2)',
+            borderRadius: '16px',
+            padding: '28px'
+          }}>
+            <div style={{ fontSize: '28px', marginBottom: '14px' }}>🚀</div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fbbf24', marginBottom: '10px' }}>
+              Direct YouTube Uploads
+            </h3>
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
+              Seamlessly publish 1080x1920 vertical shorts directly to your connected YouTube channel using authorized YouTube API Services.
+            </p>
+          </div>
 
-        <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.45)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(16, 185, 129, 0.2)',
-          borderRadius: '16px',
-          padding: '28px'
-        }}>
-          <div style={{ fontSize: '28px', marginBottom: '14px' }}>📊</div>
-          <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#34d399', marginBottom: '10px' }}>
-            Real-Time Channel Analytics
-          </h3>
-          <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
-            Live channel subscriber count, views, and video performance metrics monitored directly from your personal workspace.
-          </p>
-        </div>
+          <div style={{
+            backgroundColor: 'rgba(15, 20, 28, 0.45)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(16, 185, 129, 0.2)',
+            borderRadius: '16px',
+            padding: '28px'
+          }}>
+            <div style={{ fontSize: '28px', marginBottom: '14px' }}>📊</div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#34d399', marginBottom: '10px' }}>
+              Real-Time Channel Analytics
+            </h3>
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
+              Live channel subscriber count, views, and video performance metrics monitored directly from your personal workspace.
+            </p>
+          </div>
 
-        <div style={{
-          backgroundColor: 'rgba(15, 20, 28, 0.45)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(245, 158, 11, 0.2)',
-          borderRadius: '16px',
-          padding: '28px'
-        }}>
-          <div style={{ fontSize: '28px', marginBottom: '14px' }}>🛡️</div>
-          <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fbbf24', marginBottom: '10px' }}>
-            Enterprise Workspace Isolation
-          </h3>
-          <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
-            Multi-tenant data isolation ensures your tokens, keys, and media remain strictly separated and protected with zero data sharing.
-          </p>
+          <div style={{
+            backgroundColor: 'rgba(15, 20, 28, 0.45)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(245, 158, 11, 0.2)',
+            borderRadius: '16px',
+            padding: '28px'
+          }}>
+            <div style={{ fontSize: '28px', marginBottom: '14px' }}>🛡️</div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fbbf24', marginBottom: '10px' }}>
+              Enterprise Workspace Isolation
+            </h3>
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
+              Multi-tenant data isolation ensures your tokens, keys, and media remain strictly separated and protected with zero data sharing.
+            </p>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* 5. FOOTER - Centered Matching Container */}
       <footer style={{
+        width: '100%',
         borderTop: '1px solid rgba(245, 158, 11, 0.15)',
-        padding: '36px 24px',
+        padding: '36px 0',
         backgroundColor: 'rgba(9, 12, 16, 0.55)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        fontSize: '13px',
-        color: '#8b949e'
+        display: 'flex',
+        justifyContent: 'center',
+        boxSizing: 'border-box'
       }}>
         <div style={{
-          maxWidth: '1200px',
+          width: 'min(100% - 32px, 1200px)',
           margin: '0 auto',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '16px'
+          gap: '16px',
+          boxSizing: 'border-box',
+          padding: '0 12px'
         }}>
-          <div>
+          <div style={{ fontSize: '13px', color: '#8b949e' }}>
             © 2026 <strong style={{ color: '#fbbf24' }}>Auto YouTube Video Bot</strong>. All rights reserved.
           </div>
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
