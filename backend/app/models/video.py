@@ -139,6 +139,8 @@ class QCReport(MongoBaseModel):
 
 class Video(MongoBaseModel):
     """Primary completed video asset record."""
+    workspace_id: Optional[str] = None
+    channel_id: Optional[str] = None
     job_id: Optional[str] = None
     title: str
     description: str

@@ -5,15 +5,19 @@ import {
   VideosIcon,
   HealthIcon,
   StyleIcon,
-  SettingsIcon
+  SettingsIcon,
+  KeyIcon,
+  ShieldIcon
 } from './Icons';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  isOwner?: boolean;
+  onOpenVault?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOwner = false, onOpenVault }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon size={18} /> },
     { id: 'videos', label: 'Videos Library', icon: <VideosIcon size={18} /> },
@@ -21,6 +25,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'style', label: 'Style Analyzer', icon: <StyleIcon size={18} /> },
     { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
   ];
+
+  if (isOwner) {
+    navItems.push({ id: 'admin', label: 'Admin & Costs', icon: <ShieldIcon size={18} /> });
+  }
 
   return (
     <aside className="sidebar">
@@ -30,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
         </div>
         <div className="brand-text">
           <h1>Shorts Autopilot</h1>
-          <span className="brand-badge-zero-cost">Zero-Cost AI</span>
+          <span className="brand-badge-zero-cost">Multi-Tenant AI</span>
         </div>
       </div>
 
@@ -48,6 +56,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             </button>
           );
         })}
+
+        {onOpenVault && (
+          <button
+            className="nav-item"
+            onClick={onOpenVault}
+            style={{ marginTop: '8px', color: '#f59e0b' }}
+          >
+            <span className="nav-icon"><KeyIcon size={18} /></span>
+            <span>API Key Vault</span>
+          </button>
+        )}
       </nav>
 
       <div className="sidebar-footer">

@@ -9,6 +9,7 @@ from backend.app.core.security import encrypt_token, decrypt_token
 
 class OAuthTokenRecord(MongoBaseModel):
     """Encrypted OAuth2 credentials stored securely at rest."""
+    workspace_id: Optional[str] = None
     channel_id: str
     encrypted_refresh_token: str
     encrypted_access_token: str
@@ -32,6 +33,7 @@ class OAuthTokenRecord(MongoBaseModel):
 
 class YouTubeChannel(MongoBaseModel):
     """Connected YouTube Channel details."""
+    workspace_id: Optional[str] = None
     channel_id: str
     title: str
     description: Optional[str] = None

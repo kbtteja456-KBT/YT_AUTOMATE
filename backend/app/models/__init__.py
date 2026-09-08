@@ -12,6 +12,9 @@ from backend.app.models.settings import ScheduleConfig, VoiceConfig, ChannelSett
 from backend.app.models.style_profile import StyleProfile
 from backend.app.models.activity import ActivityEvent
 from backend.app.models.provider import ProviderType, ProviderStatus, ProviderHealth, ProviderUsageRecord
+from backend.app.models.tenant import (
+    User, Workspace, WorkspaceAPIKey, UsageLedgerRecord, TrialQuota, WorkspaceSchedule
+)
 
 __all__ = [
     "MongoBaseModel", "PyObjectId",
@@ -24,4 +27,5 @@ __all__ = [
     "StyleProfile",
     "ActivityEvent",
     "ProviderType", "ProviderStatus", "ProviderHealth", "ProviderUsageRecord",
+    "User", "Workspace", "WorkspaceAPIKey", "UsageLedgerRecord", "TrialQuota", "WorkspaceSchedule",
 ]

@@ -52,6 +52,7 @@ class JobStageLog(MongoBaseModel):
 
 class PublishingJob(MongoBaseModel):
     """Primary unit of work tracked in MongoDB."""
+    workspace_id: Optional[str] = None
     channel_id: Optional[str] = None
     slot_index: int = Field(default=1, description="1 for Morning (07:00), 2 for Evening (18:00)")
     scheduled_at: datetime = Field(description="Exact scheduled publishing datetime in UTC")

@@ -20,6 +20,28 @@ export const resolveMediaUrl = (url: string | null | undefined): string => {
   return url;
 };
 
+// Token Storage
+export const getToken = (): string | null => {
+  return localStorage.getItem('yt_auth_token');
+};
+
+export const setToken = (token: string): void => {
+  localStorage.setItem('yt_auth_token', token);
+};
+
+export const clearToken = (): void => {
+  localStorage.removeItem('yt_auth_token');
+};
+
+export const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  const token = getToken();
+  const headers = new Headers(options.headers || {});
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(url, { ...options, headers });
+};
+
 export interface HealthResponse {
   status: string;
   app: string;
@@ -106,53 +128,204 @@ export interface ChannelInfo {
   } | null;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  is_owner: boolean;
+}
+
+export interface WorkspaceContext {
+  id: string;
+  name: string;
+  slug: string;
+  is_legacy_default: boolean;
+  autopilot_enabled: boolean;
+  niche: string;
+  schedule: {
+    slot_1_time: string;
+    slot_2_time: string;
+    timezone: string;
+  };
+  trial_quota?: {
+    max_videos: number;
+    videos_generated: number;
+    max_ai_tokens: number;
+    ai_tokens_used: number;
+    max_tts_seconds: number;
+    tts_seconds_used: number;
+    is_exhausted: boolean;
+  };
+  connected_channel?: {
+    channel_id: string;
+    title: string;
+    thumbnail_url?: string;
+    subscriber_count?: number;
+    custom_url?: string;
+  };
+}
+
+export interface MeResponse {
+  user: UserProfile;
+  workspace: WorkspaceContext;
+}
+
+export interface VaultKeyInfo {
+  key_mask: string;
+  is_valid: boolean;
+  last_tested_at?: string;
+  provider: string;
+}
+
+export interface AcquisitionGuide {
+  name: string;
+  cost: string;
+  step_by_step: string[];
+  signup_url: string;
+}
+
+export interface VaultResponse {
+  workspace_id: string;
+  configured_keys: Record<string, VaultKeyInfo>;
+  acquisition_guides: Record<string, AcquisitionGuide>;
+}
+
 export const api = {
+  // Authentication & Session
+  async register(email: string, password: string, full_name?: string): Promise<{ access_token: string; user: UserProfile; workspace: WorkspaceContext }> {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, full_name })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Registration failed' }));
+      throw new Error(err.detail || 'Registration failed');
+    }
+    const data = await res.json();
+    setToken(data.access_token);
+    return data;
+  },
+
+  async login(email: string, password: string): Promise<{ access_token: string; user: UserProfile; workspace: WorkspaceContext }> {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Invalid credentials' }));
+      throw new Error(err.detail || 'Invalid email or password');
+    }
+    const data = await res.json();
+    setToken(data.access_token);
+    return data;
+  },
+
+  async getMe(): Promise<MeResponse> {
+    const res = await authFetch(`${API_BASE}/auth/me`);
+    if (!res.ok) throw new Error('Session expired');
+    return res.json();
+  },
+
+  logout(): void {
+    clearToken();
+  },
+
+  // BYOK Vault
+  async getVaultKeys(): Promise<VaultResponse> {
+    const res = await authFetch(`${API_BASE}/vault/keys`);
+    if (!res.ok) throw new Error('Failed to load key vault');
+    return res.json();
+  },
+
+  async saveVaultKey(provider: string, apiKey: string): Promise<{ status: string; key_mask: string; message: string }> {
+    const res = await authFetch(`${API_BASE}/vault/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_key: apiKey })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Key verification failed' }));
+      throw new Error(err.detail || 'Failed to save key');
+    }
+    return res.json();
+  },
+
+  async deleteVaultKey(provider: string): Promise<{ status: string }> {
+    const res = await authFetch(`${API_BASE}/vault/keys/${provider}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete key');
+    return res.json();
+  },
+
+  // Admin Cost & Usage
+  async getAdminOverview(): Promise<any> {
+    const res = await authFetch(`${API_BASE}/admin/overview`);
+    if (!res.ok) throw new Error('Failed to fetch admin overview');
+    return res.json();
+  },
+
+  async getAdminUsage(limit: number = 50): Promise<any> {
+    const res = await authFetch(`${API_BASE}/admin/usage?limit=${limit}`);
+    if (!res.ok) throw new Error('Failed to fetch usage ledger');
+    return res.json();
+  },
+
+  async toggleWorkspace(workspaceId: string, autopilotEnabled: boolean): Promise<any> {
+    const res = await authFetch(`${API_BASE}/admin/toggle-workspace`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId, autopilot_enabled: autopilotEnabled })
+    });
+    if (!res.ok) throw new Error('Failed to toggle workspace status');
+    return res.json();
+  },
+
+  // Pipeline & Dashboard Endpoints
   async getHealth(): Promise<HealthResponse> {
-    const url = BACKEND_URL ? `${BACKEND_URL}/health` : '/health';
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Health check failed');
+    const res = await authFetch(`${API_BASE}/health`);
+    if (!res.ok) throw new Error('Backend health check failed');
     return res.json();
   },
 
   async getProvidersHealth(): Promise<ProvidersHealthResponse> {
-    const url = BACKEND_URL ? `${BACKEND_URL}/providers/health` : '/providers/health';
-    const res = await fetch(url);
+    const res = await authFetch(`${API_BASE}/providers/health`);
     if (!res.ok) throw new Error('Provider health check failed');
     return res.json();
   },
 
   async getAutopilotStatus(): Promise<AutopilotStatusResponse> {
-    const res = await fetch(`${API_BASE}/autopilot/status`);
+    const res = await authFetch(`${API_BASE}/autopilot/status`);
     if (!res.ok) throw new Error('Failed to fetch autopilot status');
     return res.json();
   },
 
   async startAutopilot(): Promise<{ is_enabled: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/autopilot/start`, { method: 'POST' });
+    const res = await authFetch(`${API_BASE}/autopilot/start`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to start autopilot');
     return res.json();
   },
 
   async stopAutopilot(): Promise<{ is_enabled: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/autopilot/stop`, { method: 'POST' });
+    const res = await authFetch(`${API_BASE}/autopilot/stop`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to stop autopilot');
     return res.json();
   },
 
   async getActivity(): Promise<ActivityEventItem[]> {
-    const res = await fetch(`${API_BASE}/activity`);
+    const res = await authFetch(`${API_BASE}/activity`);
     if (!res.ok) throw new Error('Failed to fetch activity');
     return res.json();
   },
 
   async getVideos(): Promise<VideoItem[]> {
-    const res = await fetch(`${API_BASE}/videos`);
+    const res = await authFetch(`${API_BASE}/videos`);
     if (!res.ok) throw new Error('Failed to fetch videos');
     return res.json();
   },
 
   async deleteVideo(videoId: string): Promise<{ status: string; video_id: string; title?: string }> {
-    const res = await fetch(`${API_BASE}/videos/${videoId}`, {
+    const res = await authFetch(`${API_BASE}/videos/${videoId}`, {
       method: 'DELETE'
     });
     if (!res.ok) {
@@ -163,23 +336,26 @@ export const api = {
   },
 
   async triggerGenerate(topic?: string, duration: number = 45): Promise<{ job_id: string; message: string }> {
-    const res = await fetch(`${API_BASE}/videos/generate`, {
+    const res = await authFetch(`${API_BASE}/videos/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ topic, target_duration_sec: duration, slot_index: 1 })
     });
-    if (!res.ok) throw new Error('Failed to queue video generation');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to queue video generation' }));
+      throw new Error(err.detail || 'Failed to queue video generation');
+    }
     return res.json();
   },
 
   async getSettings(): Promise<any> {
-    const res = await fetch(`${API_BASE}/settings`);
+    const res = await authFetch(`${API_BASE}/settings`);
     if (!res.ok) throw new Error('Failed to fetch settings');
     return res.json();
   },
 
   async updateSettings(settings: any): Promise<any> {
-    const res = await fetch(`${API_BASE}/settings`, {
+    const res = await authFetch(`${API_BASE}/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
@@ -189,7 +365,7 @@ export const api = {
   },
 
   async getStyleProfile(): Promise<any> {
-    const res = await fetch(`${API_BASE}/style/profile`);
+    const res = await authFetch(`${API_BASE}/style/profile`);
     if (!res.ok) throw new Error('Failed to fetch style profile');
     return res.json();
   },
@@ -197,7 +373,7 @@ export const api = {
   async uploadReferenceVideo(file: File): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${API_BASE}/style/analyze`, {
+    const res = await authFetch(`${API_BASE}/style/analyze`, {
       method: 'POST',
       body: formData
     });
@@ -206,13 +382,13 @@ export const api = {
   },
 
   async getConnectedChannel(): Promise<ChannelInfo> {
-    const res = await fetch(`${API_BASE}/auth/youtube/channel`);
+    const res = await authFetch(`${API_BASE}/auth/youtube/channel`);
     if (!res.ok) throw new Error('Failed to fetch channel status');
     return res.json();
   },
 
   async syncChannel(): Promise<{ status: string; channel: any; message: string }> {
-    const res = await fetch(`${API_BASE}/auth/youtube/sync`, { method: 'POST' });
+    const res = await authFetch(`${API_BASE}/auth/youtube/sync`, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to sync with YouTube');
@@ -221,7 +397,9 @@ export const api = {
   },
 
   async getConnectUrl(): Promise<string> {
-    const res = await fetch(`${API_BASE}/auth/youtube/connect`, { method: 'POST' });
+    const token = getToken();
+    const endpoint = token ? `${API_BASE}/tenant/youtube/connect` : `${API_BASE}/auth/youtube/connect`;
+    const res = await authFetch(endpoint, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to get auth url');
     const data = await res.json();
     return data.auth_url;

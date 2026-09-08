@@ -7,8 +7,14 @@ import { VideosPage } from './pages/VideosPage';
 import { ProvidersPage } from './pages/ProvidersPage';
 import { StylePage } from './pages/StylePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AdminPage } from './pages/AdminPage';
+import { AuthPage } from './pages/AuthPage';
+import { ApiKeyVaultModal } from './components/ApiKeyVaultModal';
 import {
   api,
+  getToken,
+  UserProfile,
+  WorkspaceContext,
   AutopilotStatusResponse,
   ProvidersHealthResponse,
   ActivityEventItem,
@@ -17,6 +23,11 @@ import {
 } from './services/api';
 
 export const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceContext | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [isVaultOpen, setIsVaultOpen] = useState<boolean>(false);
+
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [autopilotStatus, setAutopilotStatus] = useState<AutopilotStatusResponse | null>(null);
   const [providersHealth, setProvidersHealth] = useState<ProvidersHealthResponse | null>(null);
@@ -26,10 +37,34 @@ export const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   useEffect(() => {
-    loadAllData();
+    checkSession();
+  }, []);
+
+  const checkSession = async () => {
+    setIsAuthChecking(true);
+    const token = getToken();
+    if (!token) {
+      setIsAuthChecking(false);
+      return;
+    }
+
+    try {
+      const me = await api.getMe();
+      setCurrentUser(me.user);
+      setCurrentWorkspace(me.workspace);
+      await loadAllData();
+    } catch (e) {
+      console.warn('Session verification note:', e);
+      api.logout();
+    } finally {
+      setIsAuthChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
 
     const interval = setInterval(() => {
-      // Don't poll when mobile screen is turned off or tab is in background
       if (!document.hidden) {
         loadAllData();
       }
@@ -47,25 +82,43 @@ export const App: React.FC = () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [currentUser]);
 
   const loadAllData = async () => {
     try {
-      const [status, health, act, vids, chan] = await Promise.all([
+      const [status, health, act, vids, chan, me] = await Promise.all([
         api.getAutopilotStatus().catch(() => null),
         api.getProvidersHealth().catch(() => null),
         api.getActivity().catch(() => []),
         api.getVideos().catch(() => []),
-        api.getConnectedChannel().catch(() => null)
+        api.getConnectedChannel().catch(() => null),
+        api.getMe().catch(() => null),
       ]);
       if (status) setAutopilotStatus(status);
       if (health) setProvidersHealth(health);
       setActivityEvents(act);
       setVideos(vids);
       if (chan) setChannelInfo(chan);
+      if (me) {
+        setCurrentUser(me.user);
+        setCurrentWorkspace(me.workspace);
+      }
     } catch (e) {
       console.error('Data poll error:', e);
     }
+  };
+
+  const handleAuthenticated = (user: UserProfile, workspace: WorkspaceContext) => {
+    setCurrentUser(user);
+    setCurrentWorkspace(workspace);
+    loadAllData();
+  };
+
+  const handleLogout = () => {
+    api.logout();
+    setCurrentUser(null);
+    setCurrentWorkspace(null);
+    setActiveTab('dashboard');
   };
 
   const handleToggleAutopilot = async () => {
@@ -103,6 +156,16 @@ export const App: React.FC = () => {
     loadAllData();
   };
 
+  // If unauthenticated, show AuthPage wrapped in CircuitStormCanvas
+  if (!isAuthChecking && !currentUser) {
+    return (
+      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+        <CircuitStormCanvas />
+        <AuthPage onAuthenticated={handleAuthenticated} />
+      </div>
+    );
+  }
+
   const renderActivePage = () => {
     switch (activeTab) {
       case 'videos':
@@ -119,6 +182,8 @@ export const App: React.FC = () => {
         return <StylePage />;
       case 'settings':
         return <SettingsPage />;
+      case 'admin':
+        return <AdminPage />;
       case 'dashboard':
       default:
         return (
@@ -141,27 +206,45 @@ export const App: React.FC = () => {
       case 'providers': return 'Provider Health';
       case 'style': return 'Style Analyzer';
       case 'settings': return 'Channel Settings';
+      case 'admin': return 'Platform Admin & Costs';
       default: return 'Autopilot Dashboard';
     }
   };
 
   const connectedChannel = channelInfo?.is_connected ? channelInfo.channel : null;
+  const isLegacyOwner = currentWorkspace?.is_legacy_default ?? currentUser?.is_owner ?? false;
 
   return (
     <div className="app-container">
       <CircuitStormCanvas />
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isOwner={currentUser?.is_owner}
+        onOpenVault={() => setIsVaultOpen(true)}
+      />
       <div className="main-content">
         <Header
           title={getPageTitle()}
           zeroCostMode={autopilotStatus?.zero_cost_mode ?? true}
-          channelTitle={connectedChannel?.title}
+          channelTitle={connectedChannel?.title || currentWorkspace?.name}
           channelAvatar={connectedChannel?.thumbnail_url}
           isGenerating={isGenerating}
           onGenerateClick={handleTriggerGenerate}
+          onOpenVault={() => setIsVaultOpen(true)}
+          trialVideosUsed={currentWorkspace?.trial_quota?.videos_generated}
+          trialMaxVideos={currentWorkspace?.trial_quota?.max_videos}
+          isLegacyOwner={isLegacyOwner}
+          onLogout={handleLogout}
         />
         {renderActivePage()}
       </div>
+
+      <ApiKeyVaultModal
+        isOpen={isVaultOpen}
+        onClose={() => setIsVaultOpen(false)}
+        onKeysUpdated={loadAllData}
+      />
     </div>
   );
 };

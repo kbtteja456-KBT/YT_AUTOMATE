@@ -42,7 +42,7 @@ This guide walks you through deploying your **AI YouTube Shorts Autopilot**:
 | `PIXABAY_API_KEY` | *Copy value from your `.env` (Line 26)* |
 | `PEXELS_API_KEY` | *Copy value from your `.env` (Line 25)* |
 | `OPENROUTER_API_KEY` | *Copy value from your `.env` (Line 15)* |
-| `AUTOPILOT_CRON_SECRET` | `autopilot_secret_bhanu_2026` |
+| `AUTOPILOT_CRON_SECRET` | *Copy value from your `.env` (or choose your own secret)* |
 
 6. Click **Deploy Web Service**.
 7. Once deployment starts, watch the Render logs. When finished, Render will show:
