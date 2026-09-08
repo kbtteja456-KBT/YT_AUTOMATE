@@ -64,6 +64,10 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     checkSession();
+    if (typeof window !== 'undefined' && window.location.search.includes('youtube_connected=true')) {
+      window.history.replaceState({}, '', window.location.pathname);
+      loadAllData();
+    }
   }, []);
 
   const checkSession = async () => {

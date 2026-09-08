@@ -20,17 +20,54 @@ export const resolveMediaUrl = (url: string | null | undefined): string => {
   return url;
 };
 
+// Resilient Storage Manager with Memory Fallback (prevents DOMException: Access is denied)
+const memoryStore: Record<string, string> = {};
+
+const safeGetItem = (key: string): string | null => {
+  try {
+    if (typeof window !== 'undefined' && 'localStorage' in window) {
+      const val = window.localStorage.getItem(key);
+      if (val) return val;
+    }
+  } catch (e) {
+    // Access denied by browser security / incognito / iframe
+  }
+  return memoryStore[key] || null;
+};
+
+const safeSetItem = (key: string, value: string): void => {
+  memoryStore[key] = value;
+  try {
+    if (typeof window !== 'undefined' && 'localStorage' in window) {
+      window.localStorage.setItem(key, value);
+    }
+  } catch (e) {
+    // Access denied
+  }
+};
+
+const safeRemoveItem = (key: string): void => {
+  delete memoryStore[key];
+  try {
+    if (typeof window !== 'undefined' && 'localStorage' in window) {
+      window.localStorage.removeItem(key);
+    }
+  } catch (e) {
+    // Access denied
+  }
+};
+
 // Token Storage
 export const getToken = (): string | null => {
-  return localStorage.getItem('yt_auth_token');
+  return safeGetItem('yt_auth_token');
 };
 
 export const setToken = (token: string): void => {
-  localStorage.setItem('yt_auth_token', token);
+  safeSetItem('yt_auth_token', token);
 };
 
 export const clearToken = (): void => {
-  localStorage.removeItem('yt_auth_token');
+  safeRemoveItem('yt_auth_token');
 };
 
 export const authFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
