@@ -185,21 +185,27 @@ export const App: React.FC = () => {
   // Public legal compliance routes accessible at any time
   if (publicView === 'privacy') {
     return (
-      <PrivacyPage
-        onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
-      />
+      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+        <CircuitStormCanvas />
+        <PrivacyPage
+          onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
+        />
+      </div>
     );
   }
 
   if (publicView === 'terms') {
     return (
-      <TermsPage
-        onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
-      />
+      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+        <CircuitStormCanvas />
+        <TermsPage
+          onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
+        />
+      </div>
     );
   }
 
-  // If unauthenticated: show LandingPage by default, or AuthPage if Sign In was clicked
+  // If unauthenticated: show LandingPage with 3D CircuitStorm background by default, or AuthPage if Sign In was clicked
   if (!isAuthChecking && !currentUser) {
     if (publicView === 'auth') {
       return (
@@ -214,11 +220,14 @@ export const App: React.FC = () => {
     }
 
     return (
-      <LandingPage
-        onLoginClick={() => navigateTo('auth')}
-        onPrivacyClick={() => navigateTo('privacy')}
-        onTermsClick={() => navigateTo('terms')}
-      />
+      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+        <CircuitStormCanvas />
+        <LandingPage
+          onLoginClick={() => navigateTo('auth')}
+          onPrivacyClick={() => navigateTo('privacy')}
+          onTermsClick={() => navigateTo('terms')}
+        />
+      </div>
     );
   }
 

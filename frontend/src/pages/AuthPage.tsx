@@ -90,28 +90,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated, onBack }) =
 
         {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{
-            width: '64px',
-            height: '64px',
-            margin: '0 auto 16px auto',
-            borderRadius: '18px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(168, 85, 247, 0.4)'
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2" />
-              <polyline points="2 17 12 22 22 17" />
-              <polyline points="2 12 12 17 22 12" />
-            </svg>
-          </div>
+          <img
+            src="/favicon.png"
+            alt="Auto YouTube Video Bot Logo"
+            style={{
+              width: '64px',
+              height: '64px',
+              margin: '0 auto 16px auto',
+              borderRadius: '18px',
+              objectFit: 'contain',
+              display: 'block',
+              boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4)',
+              border: '1px solid rgba(245, 158, 11, 0.3)'
+            }}
+          />
           <h1 style={{
             fontSize: '1.75rem',
             fontWeight: 800,
             letterSpacing: '-0.02em',
-            background: 'linear-gradient(to right, #f8fafc, #a855f7)',
+            background: 'linear-gradient(to right, #ffffff, #fbbf24)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             margin: 0

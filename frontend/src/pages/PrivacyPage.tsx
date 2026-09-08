@@ -8,37 +8,54 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#090c10',
-      color: '#e6edf3',
+      background: 'transparent',
+      color: '#e2e8f0',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       padding: '40px 20px',
-      lineHeight: 1.7
+      lineHeight: 1.7,
+      position: 'relative',
+      zIndex: 10,
+      overflowY: 'auto'
     }}>
       <div style={{
         maxWidth: '860px',
         margin: '0 auto',
-        backgroundColor: '#0d1117',
-        border: '1px solid #30363d',
-        borderRadius: '16px',
-        padding: '40px'
+        backgroundColor: 'rgba(15, 20, 28, 0.88)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid rgba(245, 158, 11, 0.25)',
+        borderRadius: '20px',
+        padding: '40px',
+        boxShadow: '0 24px 64px rgba(0, 0, 0, 0.8), 0 0 32px rgba(245, 158, 11, 0.1)'
       }}>
-        {onBack && (
-          <button
-            onClick={onBack}
-            style={{
-              background: 'transparent',
-              border: '1px solid #30363d',
-              color: '#58a6ff',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              marginBottom: '24px',
-              fontWeight: 600
-            }}
-          >
-            ← Back to Auto YouTube Video Bot
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+          {onBack && (
+            <button
+              onClick={onBack}
+              style={{
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                color: '#fbbf24',
+                padding: '8px 18px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '14px'
+              }}
+            >
+              ← Back to Auto YouTube Video Bot
+            </button>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img
+              src="/favicon.png"
+              alt="Logo"
+              style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }}
+            />
+            <span style={{ fontWeight: 700, color: '#fbbf24', fontSize: '14px' }}>Auto YouTube Video Bot</span>
+          </div>
+        </div>
 
         <h1 style={{
           fontFamily: "'Outfit', sans-serif",
@@ -49,27 +66,27 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
         }}>
           Privacy Policy
         </h1>
-        <p style={{ color: '#8b949e', marginBottom: '28px', fontSize: '14px' }}>
-          Last Updated: March 2026 • Effective for: <strong>Auto YouTube Video Bot</strong>
+        <p style={{ color: '#94a3b8', marginBottom: '28px', fontSize: '14px' }}>
+          Last Updated: March 2026 • Effective for: <strong style={{ color: '#fbbf24' }}>Auto YouTube Video Bot</strong>
         </p>
 
         <div style={{
-          backgroundColor: 'rgba(56, 139, 253, 0.1)',
-          border: '1px solid rgba(56, 139, 253, 0.4)',
+          backgroundColor: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
           borderRadius: '12px',
           padding: '20px',
           marginBottom: '32px'
         }}>
-          <h3 style={{ color: '#58a6ff', margin: '0 0 8px 0', fontSize: '18px' }}>
+          <h3 style={{ color: '#fbbf24', margin: '0 0 8px 0', fontSize: '18px' }}>
             YouTube API Services Compliance Notice
           </h3>
           <p style={{ margin: 0, fontSize: '15px' }}>
-            <strong>Auto YouTube Video Bot</strong> uses YouTube API Services to authenticate YouTube channel owners, retrieve channel analytics (subscriber count and view metrics), and upload authorized YouTube Shorts videos created by the user. By using Auto YouTube Video Bot, you agree to be bound by the{' '}
+            <strong style={{ color: '#fbbf24' }}>Auto YouTube Video Bot</strong> uses YouTube API Services to authenticate YouTube channel owners, retrieve channel analytics (subscriber count and view metrics), and upload authorized YouTube Shorts videos created by the user. By using Auto YouTube Video Bot, you agree to be bound by the{' '}
             <a
               href="https://www.youtube.com/t/terms"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: '#58a6ff', textDecoration: 'underline' }}
+              style={{ color: '#34d399', textDecoration: 'underline' }}
             >
               YouTube Terms of Service
             </a>{' '}
@@ -78,7 +95,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
               href="https://policies.google.com/privacy"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: '#58a6ff', textDecoration: 'underline' }}
+              style={{ color: '#34d399', textDecoration: 'underline' }}
             >
               Google Privacy Policy
             </a>.
@@ -86,7 +103,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
         </div>
 
         <section style={{ marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
+          <h2 style={{ fontSize: '20px', color: '#fbbf24', borderBottom: '1px solid rgba(245, 158, 11, 0.2)', paddingBottom: '8px' }}>
             1. Information We Collect
           </h2>
           <p>
@@ -101,7 +118,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
         </section>
 
         <section style={{ marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
+          <h2 style={{ fontSize: '20px', color: '#fbbf24', borderBottom: '1px solid rgba(245, 158, 11, 0.2)', paddingBottom: '8px' }}>
             2. How We Use Your Information
           </h2>
           <p>We use the data accessed through the YouTube API strictly to provide core platform functionality:</p>
@@ -111,7 +128,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
             <li>To ensure multi-tenant data isolation so no other user or workspace can access your YouTube credentials.</li>
           </ul>
           <p>
-            <strong>We DO NOT:</strong>
+            <strong style={{ color: '#34d399' }}>We DO NOT:</strong>
           </p>
           <ul style={{ paddingLeft: '20px' }}>
             <li>Sell, lease, or rent your personal data or YouTube credentials to any third party.</li>
@@ -121,12 +138,12 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
         </section>
 
         <section style={{ marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
+          <h2 style={{ fontSize: '20px', color: '#fbbf24', borderBottom: '1px solid rgba(245, 158, 11, 0.2)', paddingBottom: '8px' }}>
             3. Google API Services User Data Policy & Limited Use Disclosure
           </h2>
           <div style={{
-            backgroundColor: 'rgba(56, 139, 253, 0.08)',
-            border: '1px solid rgba(56, 139, 253, 0.25)',
+            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
             borderRadius: '8px',
             padding: '16px',
             marginBottom: '16px'
@@ -137,7 +154,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
                 href="https://developers.google.com/terms/api-services-user-data-policy"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: '#58a6ff', textDecoration: 'underline' }}
+                style={{ color: '#34d399', textDecoration: 'underline' }}
               >
                 Google API Services User Data Policy
               </a>, including the <strong>Limited Use requirements</strong>.
@@ -155,7 +172,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
         </section>
 
         <section style={{ marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
+          <h2 style={{ fontSize: '20px', color: '#fbbf24', borderBottom: '1px solid rgba(245, 158, 11, 0.2)', paddingBottom: '8px' }}>
             4. Data Storage, Retention & Deletion Procedures
           </h2>
           <p>
@@ -167,8 +184,8 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
         </section>
 
         <section style={{ marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
-            4. How to Revoke Access to Your Data
+          <h2 style={{ fontSize: '20px', color: '#fbbf24', borderBottom: '1px solid rgba(245, 158, 11, 0.2)', paddingBottom: '8px' }}>
+            5. How to Revoke Access to Your Data
           </h2>
           <p>
             You retain full control over your YouTube channel permissions at all times. You can revoke Auto YouTube Video Bot’s access through any of the following methods:
@@ -180,7 +197,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
                 href="https://security.google.com/settings/security/permissions"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: '#58a6ff', textDecoration: 'underline' }}
+                style={{ color: '#34d399', textDecoration: 'underline' }}
               >
                 Google Security Settings Permissions Page
               </a>.
@@ -192,14 +209,14 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
         </section>
 
         <section style={{ marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
-            5. Contact Us
+          <h2 style={{ fontSize: '20px', color: '#fbbf24', borderBottom: '1px solid rgba(245, 158, 11, 0.2)', paddingBottom: '8px' }}>
+            6. Contact Us
           </h2>
           <p>
             If you have questions about this Privacy Policy, your data, or wish to request data deletion, please contact the developer at:
           </p>
-          <p style={{ backgroundColor: '#161b22', padding: '12px 16px', borderRadius: '8px', display: 'inline-block' }}>
-            📧 Support Email: <strong>kbtteja456@gmail.com</strong>
+          <p style={{ backgroundColor: 'rgba(22, 27, 34, 0.9)', border: '1px solid rgba(245, 158, 11, 0.25)', padding: '12px 16px', borderRadius: '8px', display: 'inline-block' }}>
+            📧 Support Email: <strong style={{ color: '#fbbf24' }}>kbtteja456@gmail.com</strong>
           </p>
         </section>
       </div>
