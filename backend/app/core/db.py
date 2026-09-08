@@ -41,7 +41,7 @@ class AsyncMongoDB:
         target_db = db_name or settings.mongodb_db_name
 
         try:
-            cls.client = AsyncIOMotorClient(target_uri, serverSelectionTimeoutMS=2000)
+            cls.client = AsyncIOMotorClient(target_uri, serverSelectionTimeoutMS=15000)
             cls.db = cls.client[target_db]
             await cls.create_indices()
             logger.info(f"Connected to Async MongoDB: {target_db}")
@@ -94,7 +94,7 @@ class AsyncMongoDB:
     def get_db(cls) -> AsyncIOMotorDatabase:
         """Get active async database instance, connecting if needed."""
         if cls.db is None:
-            cls.client = AsyncIOMotorClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+            cls.client = AsyncIOMotorClient(settings.mongodb_uri, serverSelectionTimeoutMS=15000)
             cls.db = cls.client[settings.mongodb_db_name]
         return cls.db
 

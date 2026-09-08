@@ -7,12 +7,42 @@ interface ActivityFeedProps {
 }
 
 export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
-  // Determine pipeline stage status dynamically from recent events if available
   const latestEvent = events[0];
-  const latestMsg = latestEvent?.message || 'AI YouTube Shorts Autopilot daemon started. Zero-Cost Mode active.';
-  const latestTime = latestEvent
-    ? new Date(latestEvent.timestamp).toLocaleTimeString()
-    : '08:18:14';
+  const latestMsg = latestEvent?.message || 'Pipeline idle. Ready to create your first short.';
+  const latestTime = latestEvent?.timestamp
+    ? new Date(latestEvent.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : 'Ready';
+
+  // Check if a job is actively running right now
+  const isPipelineActive = latestEvent?.event_type === 'PIPELINE_ACTIVE';
+  const rawStage = (latestEvent?.stage || '').toUpperCase();
+
+  let activeIndex = -1;
+  if (isPipelineActive) {
+    if (rawStage.includes('RESEARCH')) activeIndex = 0;
+    else if (rawStage.includes('SCRIPT')) activeIndex = 1;
+    else if (rawStage.includes('VOICE')) activeIndex = 2;
+    else if (rawStage.includes('CAPTION') || rawStage.includes('TRANSCRIB')) activeIndex = 3;
+    else if (rawStage.includes('RENDER')) activeIndex = 4;
+    else if (rawStage.includes('QC') || rawStage.includes('QUALITY')) activeIndex = 5;
+    else if (rawStage.includes('UPLOAD') || rawStage.includes('PUBLISH') || rawStage.includes('READY')) activeIndex = 6;
+    else activeIndex = 0;
+  }
+
+  // Check if recently completed
+  const isRecentlyCompleted = latestEvent?.event_type === 'VIDEO_PUBLISHED' || latestEvent?.event_type === 'VIDEO_RENDERED';
+
+  const getStageState = (idx: number): { status: 'done' | 'active' | 'waiting'; statusLabel: string } => {
+    if (isPipelineActive) {
+      if (idx < activeIndex) return { status: 'done', statusLabel: 'Done' };
+      if (idx === activeIndex) return { status: 'active', statusLabel: 'In Progress' };
+      return { status: 'waiting', statusLabel: 'Queued' };
+    }
+    if (isRecentlyCompleted) {
+      return { status: 'done', statusLabel: 'Done' };
+    }
+    return { status: 'waiting', statusLabel: 'Ready' };
+  };
 
   const stages = [
     {
@@ -24,8 +54,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
       ),
-      status: 'done',
-      statusLabel: 'Done'
+      ...getStageState(0)
     },
     {
       id: 'script',
@@ -38,8 +67,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           <line x1="16" y1="17" x2="8" y2="17" />
         </svg>
       ),
-      status: 'done',
-      statusLabel: 'Done'
+      ...getStageState(1)
     },
     {
       id: 'voice',
@@ -51,8 +79,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           <line x1="12" y1="19" x2="12" y2="22" />
         </svg>
       ),
-      status: 'done',
-      statusLabel: 'Done'
+      ...getStageState(2)
     },
     {
       id: 'captions',
@@ -60,8 +87,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
       icon: (
         <span style={{ fontWeight: 800, fontSize: '17px', fontFamily: 'var(--font-display)' }}>T</span>
       ),
-      status: 'done',
-      statusLabel: 'Done'
+      ...getStageState(3)
     },
     {
       id: 'rendering',
@@ -71,8 +97,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           <polygon points="6 4 20 12 6 20 6 4" />
         </svg>
       ),
-      status: 'active',
-      statusLabel: 'Processing 72%'
+      ...getStageState(4)
     },
     {
       id: 'qc',
@@ -82,8 +107,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       ),
-      status: 'waiting',
-      statusLabel: 'Waiting'
+      ...getStageState(5)
     },
     {
       id: 'upload',
@@ -95,8 +119,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           <path d="m8 16 4-4 4 4" />
         </svg>
       ),
-      status: 'waiting',
-      statusLabel: 'Waiting'
+      ...getStageState(6)
     }
   ];
 
@@ -104,12 +127,26 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
     <div className="card pipeline-card">
       <div className="pipeline-header">
         <div className="pipeline-title-group">
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-          <h3 className="pipeline-title">Live Pipeline Activity</h3>
+          <span style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: isPipelineActive ? '#3b82f6' : '#10b981',
+            boxShadow: isPipelineActive ? '0 0 10px #3b82f6' : '0 0 8px #10b981'
+          }} />
+          <h3 className="pipeline-title">
+            {isPipelineActive ? 'Live Pipeline Activity (Running)' : 'Live Pipeline Activity'}
+          </h3>
         </div>
         <div className="live-stream-badge">
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-          Live Stream
+          <span style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: isPipelineActive ? '#3b82f6' : '#10b981',
+            display: 'inline-block'
+          }} />
+          {isPipelineActive ? 'Active Job' : (isRecentlyCompleted ? 'Ready' : 'Idle')}
         </div>
       </div>
 
@@ -154,7 +191,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ events }) => {
           </div>
           <span className="ticker-message">{latestMsg}</span>
         </div>
-        <span className="ticker-time">[System] Reconciled • {latestTime}</span>
+        <span className="ticker-time">{latestTime}</span>
       </div>
     </div>
   );

@@ -25,6 +25,18 @@ class GoogleOAuthManager:
     """Manages Google OAuth 2.0 authentication, token exchange, and encrypted persistence."""
 
     @staticmethod
+    def _sanitize_redirect_uri(ruri: Optional[str]) -> str:
+        """Ensure redirect_uri complies with Google OAuth 2.0 policy."""
+        fallback = "http://localhost:8000/api/auth/youtube/callback"
+        if not ruri:
+            return fallback
+        clean = ruri.strip()
+        # Disallow non-localhost http schemas (e.g. http://YT/) which trigger Google OAuth Error 400
+        if clean.startswith("http://") and not (clean.startswith("http://localhost") or clean.startswith("http://127.0.0.1")):
+            return fallback
+        return clean
+
+    @staticmethod
     def get_authorization_url(
         client_id: Optional[str] = None,
         redirect_uri: Optional[str] = None,
@@ -32,7 +44,7 @@ class GoogleOAuthManager:
     ) -> str:
         """Construct the official Google OAuth 2.0 consent screen URL."""
         cid = client_id or settings.google_client_id
-        ruri = redirect_uri or settings.youtube_redirect_uri
+        ruri = GoogleOAuthManager._sanitize_redirect_uri(redirect_uri or settings.youtube_redirect_uri)
 
         if not cid:
             raise YouTubeAPIError("GOOGLE_CLIENT_ID is not configured.")
@@ -60,7 +72,7 @@ class GoogleOAuthManager:
         """Exchange authorization code for access and refresh tokens."""
         cid = client_id or settings.google_client_id
         csec = client_secret or settings.google_client_secret
-        ruri = redirect_uri or settings.youtube_redirect_uri
+        ruri = GoogleOAuthManager._sanitize_redirect_uri(redirect_uri or settings.youtube_redirect_uri)
 
         if not cid or not csec:
             raise YouTubeAPIError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required.")

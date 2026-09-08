@@ -91,6 +91,7 @@ export interface ActivityEventItem {
   level: string;
   agent_name?: string;
   job_id?: string;
+  stage?: string;
   message: string;
   timestamp: string;
 }
