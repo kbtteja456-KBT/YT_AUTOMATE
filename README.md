@@ -6,7 +6,7 @@ AI-verified Python quiz YouTube Shorts every day (07:00 and 18:00 Asia/Kolkata).
 **Primary scheduler: GitHub Actions** (runs in Google's cloud — zero laptop uptime required).
 **Secondary scheduler: Local laptop** (documented as fallback; uptime constraints apply — see warning below).
 
-DEMO_URL:-ytsb.vercel.app
+---
 
 ## How Videos Are Generated
 

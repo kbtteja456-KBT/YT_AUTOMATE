@@ -86,9 +86,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOwn
           Create<br />
           Grow 🚀
         </div>
-        <div className="sidebar-pill-badge">
-          ★ Powered by AI
-        </div>
       </div>
     </aside>
   );

@@ -155,3 +155,16 @@ def test_auth_endpoints_api():
         me_data = me_resp.json()
         assert me_data["user"]["email"] == test_email
         assert me_data["workspace"]["trial_quota"]["max_videos"] == 3
+
+        # Test tenant YouTube channel isolation: tenant must NOT see owner's channel
+        chan_resp = client.get("/api/auth/youtube/channel", headers={"Authorization": f"Bearer {token}"})
+        assert chan_resp.status_code == 200
+        chan_data = chan_resp.json()
+        assert chan_data["is_connected"] is False
+        assert chan_data["channel"] is None
+
+        # Test tenant videos isolation: tenant must NOT see owner's videos
+        vids_resp = client.get("/api/videos", headers={"Authorization": f"Bearer {token}"})
+        assert vids_resp.status_code == 200
+        assert vids_resp.json() == []
+

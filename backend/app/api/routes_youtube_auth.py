@@ -1,15 +1,17 @@
 """Official Google OAuth 2.0 flow and YouTube channel management endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from fastapi.responses import RedirectResponse
 from typing import Any, Optional
 from datetime import datetime, timezone, timedelta
+from bson import ObjectId
 
 from backend.app.config import settings
 from backend.app.core.logging import logger
 from backend.app.core.oauth import GoogleOAuthManager
 from backend.app.core.security import encrypt_token, decrypt_token
 from backend.app.core.db import AsyncMongoDB
+from backend.app.core.auth import get_optional_current_user
 from backend.app.models.channel import YouTubeChannel, OAuthTokenRecord
 
 router = APIRouter(prefix="/auth/youtube", tags=["youtube_auth"])
@@ -29,8 +31,14 @@ async def initiate_youtube_auth() -> dict[str, Any]:
 
 
 @router.get("/callback")
-async def handle_youtube_callback(request: Request, code: str = Query(...)) -> Any:
-    """Receive code from Google OAuth, exchange for tokens, encrypt and persist."""
+async def handle_youtube_callback(
+    request: Request,
+    code: str = Query(...),
+    state: Optional[str] = Query(default=None)
+) -> Any:
+    """Receive code from Google OAuth, exchange for tokens, encrypt and persist.
+    Supports both legacy owner connections and signed tenant workspace connections.
+    """
     try:
         # 1. Exchange code for tokens
         tokens = await GoogleOAuthManager.exchange_code_for_tokens(code)
@@ -47,8 +55,17 @@ async def handle_youtube_callback(request: Request, code: str = Query(...)) -> A
         profile = await GoogleOAuthManager.fetch_channel_profile(access_token)
         channel_id = profile["channel_id"]
 
-        # 3. Store encrypted tokens in MongoDB
+        # 3. Check for tenant workspace context in state token
+        workspace_id: Optional[str] = None
+        if state:
+            from backend.app.api.routes_tenant_youtube import verify_oauth_state
+            parsed = verify_oauth_state(state)
+            if parsed:
+                workspace_id, _ = parsed
+
+        # 4. Store encrypted tokens in MongoDB
         token_record = OAuthTokenRecord(
+            workspace_id=workspace_id,
             channel_id=channel_id,
             encrypted_refresh_token=encrypt_token(refresh_token),
             encrypted_access_token=encrypt_token(access_token),
@@ -57,6 +74,7 @@ async def handle_youtube_callback(request: Request, code: str = Query(...)) -> A
         )
 
         channel_record = YouTubeChannel(
+            workspace_id=workspace_id,
             channel_id=channel_id,
             title=profile["title"],
             description=profile.get("description"),
@@ -70,25 +88,43 @@ async def handle_youtube_callback(request: Request, code: str = Query(...)) -> A
 
         try:
             db = AsyncMongoDB.get_db()
-            await db.oauth_tokens.update_one(
-                {"channel_id": channel_id},
-                {"$set": token_record.to_mongo_dict()},
-                upsert=True
-            )
-            await db.youtube_channels.update_one(
-                {"channel_id": channel_id},
-                {"$set": channel_record.to_mongo_dict()},
-                upsert=True
-            )
+            if workspace_id:
+                await db.oauth_tokens.update_one(
+                    {"workspace_id": workspace_id, "channel_id": channel_id},
+                    {"$set": token_record.to_mongo_dict()},
+                    upsert=True
+                )
+                await db.youtube_channels.update_one(
+                    {"workspace_id": workspace_id, "channel_id": channel_id},
+                    {"$set": channel_record.to_mongo_dict()},
+                    upsert=True
+                )
+                await db.workspaces.update_one(
+                    {"_id": ObjectId(workspace_id)},
+                    {"$set": {"connected_channel_id": channel_id, "updated_at": datetime.now(timezone.utc)}}
+                )
+            else:
+                await db.oauth_tokens.update_one(
+                    {"channel_id": channel_id},
+                    {"$set": token_record.to_mongo_dict()},
+                    upsert=True
+                )
+                await db.youtube_channels.update_one(
+                    {"channel_id": channel_id},
+                    {"$set": channel_record.to_mongo_dict()},
+                    upsert=True
+                )
         except Exception as dbe:
             logger.warning(f"MongoDB persistence note in OAuth callback: {dbe}")
 
         accept_header = request.headers.get("accept", "")
+        frontend_url = request.headers.get("origin") or "http://localhost:3000"
         if "text/html" in accept_header:
-            return RedirectResponse(url="http://localhost:3000?connected=true")
+            return RedirectResponse(url=f"{frontend_url}?youtube_connected=true")
 
         return {
             "status": "CONNECTED",
+            "workspace_id": workspace_id,
             "channel_id": channel_id,
             "title": profile["title"],
             "subscriber_count": profile.get("subscriber_count"),
@@ -155,14 +191,57 @@ async def _perform_youtube_sync(channel_id: str, db: Any) -> Optional[dict[str, 
     return updated
 
 
+async def _resolve_channel_for_user(db: Any, user: Optional[dict[str, Any]]) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+    """Resolve (channel_document, workspace_id) based on caller identity.
+    - If user is non-owner tenant: search channels scoped to their workspace.
+    - If user is owner: return active owner channel.
+    - If user is anonymous (legacy cron / CLI): return active legacy channel.
+    """
+    if user and not user.get("is_owner"):
+        target_ws_id = user.get("default_workspace_id")
+        ws = None
+        if target_ws_id:
+            try:
+                ws = await db.workspaces.find_one({"_id": ObjectId(target_ws_id)})
+            except Exception:
+                ws = await db.workspaces.find_one({"_id": target_ws_id})
+        if not ws:
+            user_id_str = str(user.get("_id") or user.get("id"))
+            ws = await db.workspaces.find_one({"owner_id": user_id_str})
+
+        if not ws:
+            return None, None
+
+        ws_id_str = str(ws["_id"])
+        query_conditions: list[dict[str, Any]] = [{"workspace_id": ws_id_str}]
+        if ws.get("connected_channel_id"):
+            query_conditions.append({"channel_id": ws["connected_channel_id"]})
+
+        channel_doc = await db.youtube_channels.find_one({"$or": query_conditions})
+        if channel_doc:
+            return channel_doc, ws_id_str
+        return None, ws_id_str
+
+    # Owner or legacy caller
+    channel_doc = await db.youtube_channels.find_one({"is_active": True})
+    if not channel_doc:
+        channel_doc = await db.youtube_channels.find_one()
+    
+    ws_id = channel_doc.get("workspace_id") if channel_doc else None
+    return channel_doc, ws_id
+
+
 @router.get("/channel")
-async def get_connected_channel() -> dict[str, Any]:
+async def get_connected_channel(
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
     """Retrieve active YouTube channel information without exposing secrets.
+    Scoped strictly to the authenticated tenant's workspace to prevent data leakage.
     Automatically refreshes live stats from YouTube if cached data is older than 60 seconds.
     """
     try:
         db = AsyncMongoDB.get_db()
-        data = await db.youtube_channels.find_one({"is_active": True})
+        data, _ = await _resolve_channel_for_user(db, user)
         if not data:
             return {"is_connected": False, "channel": None}
 
@@ -178,7 +257,7 @@ async def get_connected_channel() -> dict[str, Any]:
             if (now - last_synced).total_seconds() > 60:
                 should_auto_sync = True
 
-        if should_auto_sync:
+        if should_auto_sync and data.get("channel_id"):
             try:
                 refreshed = await _perform_youtube_sync(data["channel_id"], db)
                 if refreshed:
@@ -199,18 +278,23 @@ async def get_connected_channel() -> dict[str, Any]:
 
 
 @router.post("/sync")
-async def sync_youtube_channel() -> dict[str, Any]:
-    """Force real-time synchronization of subscriber and view counts with YouTube Data API."""
+async def sync_youtube_channel(
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
+    """Force real-time synchronization of subscriber and view counts with YouTube Data API for current workspace."""
     try:
         db = AsyncMongoDB.get_db()
-        channel = await db.youtube_channels.find_one({"is_active": True})
+        channel, _ = await _resolve_channel_for_user(db, user)
         if not channel:
-            raise HTTPException(status_code=404, detail="No active YouTube channel connected.")
+            raise HTTPException(status_code=404, detail="No YouTube channel connected to this workspace.")
 
-        channel_id = channel["channel_id"]
+        channel_id = channel.get("channel_id")
+        if not channel_id:
+            raise HTTPException(status_code=404, detail="Invalid channel configuration.")
+
         updated_channel = await _perform_youtube_sync(channel_id, db)
         if not updated_channel:
-            raise HTTPException(status_code=400, detail="OAuth credentials not found.")
+            raise HTTPException(status_code=400, detail="OAuth credentials not found for this channel.")
 
         logger.info(f"Synchronized stats for '{updated_channel.get('title')}': {updated_channel.get('subscriber_count')} subs.")
 

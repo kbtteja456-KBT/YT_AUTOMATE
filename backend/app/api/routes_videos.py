@@ -3,15 +3,17 @@
 import threading
 import time
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 from datetime import datetime, timezone
+from bson import ObjectId
 
 from backend.app.celery_app.tasks import run_pipeline_task
 from backend.app.core.db import SyncMongoDB
 from backend.app.core.logging import logger
 from backend.app.core.security import compute_content_hash
+from backend.app.core.auth import get_optional_current_user
 from backend.app.models.job import JobState, PublishingJob
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -134,10 +136,54 @@ async def trigger_video_generation(request: GenerateVideoRequest) -> dict[str, A
 
 
 @router.get("")
-async def list_videos(limit: int = Query(default=20, ge=1, le=100)) -> list[dict[str, Any]]:
-    """List recent rendered and published videos from MongoDB."""
+async def list_videos(
+    limit: int = Query(default=20, ge=1, le=100),
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> list[dict[str, Any]]:
+    """List recent rendered and published videos from MongoDB, strictly isolated to caller workspace."""
     db = SyncMongoDB.get_db()
-    cursor = db.videos.find({}).sort("created_at", -1).limit(limit)
+
+    query: dict[str, Any] = {}
+    if user:
+        if not user.get("is_owner"):
+            # Tenant workspace isolation
+            target_ws_id = user.get("default_workspace_id")
+            ws = None
+            if target_ws_id:
+                try:
+                    ws = db.workspaces.find_one({"_id": ObjectId(target_ws_id)})
+                except Exception:
+                    ws = db.workspaces.find_one({"_id": target_ws_id})
+            if not ws:
+                user_id_str = str(user.get("_id") or user.get("id"))
+                ws = db.workspaces.find_one({"owner_id": user_id_str})
+
+            if ws:
+                query["workspace_id"] = str(ws["_id"])
+            else:
+                return []
+        else:
+            # Owner: owner's workspace videos + unassigned legacy videos
+            legacy_ws = db.workspaces.find_one({"is_legacy_default": True})
+            ws_id = str(legacy_ws["_id"]) if legacy_ws else None
+            if ws_id:
+                query["$or"] = [
+                    {"workspace_id": ws_id},
+                    {"workspace_id": None},
+                    {"workspace_id": {"$exists": False}}
+                ]
+    else:
+        # Anonymous legacy caller (e.g. run_slot_cli.py / cron)
+        legacy_ws = db.workspaces.find_one({"is_legacy_default": True})
+        ws_id = str(legacy_ws["_id"]) if legacy_ws else None
+        if ws_id:
+            query["$or"] = [
+                {"workspace_id": ws_id},
+                {"workspace_id": None},
+                {"workspace_id": {"$exists": False}}
+            ]
+
+    cursor = db.videos.find(query).sort("created_at", -1).limit(limit)
     return [_serialize_doc(v) for v in cursor]
 
 

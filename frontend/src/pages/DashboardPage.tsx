@@ -31,12 +31,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onRefreshData
 }) => {
   const [isSyncing, setIsSyncing] = React.useState(false);
+  const [isConnecting, setIsConnecting] = React.useState(false);
   const [syncNotice, setSyncNotice] = React.useState<string | null>(null);
 
-  const channel = channelInfo?.is_connected ? channelInfo.channel : null;
-  const channelName = channel?.title || 'Bhanu Teja';
-  const channelHandle = channel?.custom_url || '@bhanuteja-8';
-  const channelId = channel?.channel_id || 'UCBQkctpyUEzsCmEbeJ8RQ';
+  const isConnected = Boolean(channelInfo?.is_connected && channelInfo?.channel);
+  const channel = isConnected ? channelInfo!.channel : null;
+  const channelName = channel?.title || '';
+  const channelHandle = channel?.custom_url || '';
+  const channelId = channel?.channel_id || '';
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setSyncNotice(null);
+    try {
+      const authUrl = await api.getConnectUrl();
+      window.location.href = authUrl;
+    } catch (err: any) {
+      setSyncNotice(`Connection error: ${err.message || 'Could not initiate YouTube OAuth'}`);
+      setIsConnecting(false);
+    }
+  };
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -65,37 +79,75 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   return (
     <div className="page-body">
       {/* 1. YouTube Connection Banner Card */}
-      <div className="card yt-connected-card">
-        <div className="yt-card-left">
-          <YouTubeRedTileIcon size={44} />
-          <div>
-            <div className="yt-card-title-row">
-              <span className="yt-channel-name">{channelName}</span>
-              <span className="yt-channel-handle">{channelHandle}</span>
-            </div>
-            <div className="yt-channel-id">
-              Channel ID: <code>{channelId}</code>
+      {!isConnected ? (
+        <div className="card yt-connected-card" style={{ border: '1px solid rgba(239, 68, 68, 0.25)', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(15, 23, 42, 0.6))' }}>
+          <div className="yt-card-left">
+            <YouTubeRedTileIcon size={44} />
+            <div>
+              <div className="yt-card-title-row">
+                <span className="yt-channel-name" style={{ color: '#f87171' }}>No YouTube Channel Connected</span>
+              </div>
+              <div className="yt-channel-id" style={{ marginTop: '4px', color: '#94a3b8' }}>
+                Connect your YouTube channel to enable 1-click publishing, scheduled shorts, and live analytics.
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="yt-card-right">
-          <span className="yt-connected-badge">
-            <CheckCircleIcon size={13} color="#10b981" />
-            YouTube Connected
-          </span>
-
-          <button
-            className="btn btn-secondary yt-sync-btn"
-            onClick={handleSync}
-            disabled={isSyncing}
-          >
-            <SyncIcon size={13} />
-            <span>{isSyncing ? 'Syncing...' : 'Sync Stats'}</span>
-            <ChevronDownIcon size={11} color="#94a3b8" />
-          </button>
+          <div className="yt-card-right">
+            <button
+              className="btn btn-primary"
+              onClick={handleConnect}
+              disabled={isConnecting}
+              style={{
+                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                borderColor: '#ef4444',
+                color: '#ffffff',
+                fontWeight: 600,
+                padding: '8px 18px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              <YouTubeRedTileIcon size={18} />
+              <span>{isConnecting ? 'Connecting...' : 'Connect YouTube'}</span>
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="card yt-connected-card">
+          <div className="yt-card-left">
+            <YouTubeRedTileIcon size={44} />
+            <div>
+              <div className="yt-card-title-row">
+                <span className="yt-channel-name">{channelName}</span>
+                {channelHandle && <span className="yt-channel-handle">{channelHandle}</span>}
+              </div>
+              <div className="yt-channel-id">
+                Channel ID: <code>{channelId}</code>
+              </div>
+            </div>
+          </div>
+
+          <div className="yt-card-right">
+            <span className="yt-connected-badge">
+              <CheckCircleIcon size={13} color="#10b981" />
+              YouTube Connected
+            </span>
+
+            <button
+              className="btn btn-secondary yt-sync-btn"
+              onClick={handleSync}
+              disabled={isSyncing}
+            >
+              <SyncIcon size={13} />
+              <span>{isSyncing ? 'Syncing...' : 'Sync Stats'}</span>
+              <ChevronDownIcon size={11} color="#94a3b8" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {syncNotice && (
         <div style={{

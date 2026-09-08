@@ -11,10 +11,10 @@ interface StatsRowProps {
 
 export const StatsRow: React.FC<StatsRowProps> = ({
   videosCount,
-  subscribers = 3,
-  totalViews = 48,
-  avgQcScore = 92.5,
-  channelTitle = 'Bhanu Teja'
+  subscribers = 0,
+  totalViews = 0,
+  avgQcScore = 0,
+  channelTitle
 }) => {
   const formatValue = (val: string | number | undefined, fallback: number | string) => {
     if (val === undefined || val === null || val === 'NOT AVAILABLE') return fallback;
@@ -22,14 +22,14 @@ export const StatsRow: React.FC<StatsRowProps> = ({
     return val;
   };
 
-  const displaySubs = formatValue(subscribers, 3);
-  const displayViews = formatValue(totalViews, 48);
-  const displayQc = avgQcScore > 0 ? avgQcScore.toFixed(1) : '92.5';
-  const qcPercent = Math.min(Math.max(Number(displayQc), 0), 100);
+  const hasChannel = Boolean(channelTitle);
+  const displaySubs = hasChannel ? formatValue(subscribers, 0) : '—';
+  const displayViews = hasChannel ? formatValue(totalViews, 0) : '—';
+  const displayQc = videosCount > 0 ? (avgQcScore > 0 ? avgQcScore.toFixed(1) : '92.5') : '—';
+  const qcPercent = videosCount > 0 ? Math.min(Math.max(Number(displayQc) || 90, 0), 100) : 0;
 
-  // Derive rendered videos total ratio nicely if videosCount exists
-  const totalSlots = Math.max(videosCount, 18);
-  const renderSuccessRate = totalSlots > 0 ? Math.round((videosCount / totalSlots) * 100) : 78;
+  const totalSlots = Math.max(videosCount, 0);
+  const renderSuccessRate = totalSlots > 0 ? Math.round((videosCount / totalSlots) * 100) : 0;
 
   return (
     <div className="stats-grid-3d">
@@ -56,7 +56,9 @@ export const StatsRow: React.FC<StatsRowProps> = ({
         <div className="stat-main-number">{displaySubs}</div>
 
         <div className="stat-trend-row">
-          <span className="stat-trend-badge">↑ +2 this week</span>
+          <span className="stat-trend-badge" style={{ color: hasChannel ? '#10b981' : '#94a3b8' }}>
+            {hasChannel ? '● Synced via OAuth' : '○ Not connected'}
+          </span>
         </div>
 
         <div style={{ margin: '4px 0 -4px 0' }}>
@@ -64,7 +66,7 @@ export const StatsRow: React.FC<StatsRowProps> = ({
         </div>
 
         <div className="stat-footer-text">
-          Channel: {channelTitle || 'Bhanu Teja'}
+          {hasChannel ? `Channel: ${channelTitle}` : 'No YouTube channel bound'}
         </div>
       </div>
 
@@ -89,14 +91,18 @@ export const StatsRow: React.FC<StatsRowProps> = ({
         <div className="stat-main-number">{displayViews}</div>
 
         <div className="stat-trend-row">
-          <span className="stat-trend-badge">↑ +32% this week</span>
+          <span className="stat-trend-badge" style={{ color: hasChannel ? '#10b981' : '#94a3b8' }}>
+            {hasChannel ? 'Live YouTube Analytics' : 'Awaiting connection'}
+          </span>
         </div>
 
         <div style={{ margin: '4px 0 -4px 0' }}>
           <SparklineGreen width={120} height={32} />
         </div>
 
-        <div className="stat-footer-text">Live from YouTube API</div>
+        <div className="stat-footer-text">
+          {hasChannel ? 'Live from YouTube API' : 'Connect channel to track'}
+        </div>
       </div>
 
       {/* 3. Rendered Videos */}
@@ -120,23 +126,23 @@ export const StatsRow: React.FC<StatsRowProps> = ({
 
         <div className="stat-card-label">Rendered Videos</div>
         <div className="stat-main-number">
-          {videosCount > 0 ? `${videosCount} / ${totalSlots}` : '14 / 18'}
+          {videosCount > 0 ? `${videosCount} Videos` : '0 Videos'}
         </div>
 
         <div className="stat-trend-row">
           <span className="stat-trend-subtext">
-            {videosCount > 0 ? `${renderSuccessRate}% success rate` : '78% success rate'}
+            {videosCount > 0 ? `${renderSuccessRate}% success rate` : 'Ready to create shorts'}
           </span>
         </div>
 
         <div className="stat-progress-container">
           <div
             className="stat-progress-fill-emerald"
-            style={{ width: `${videosCount > 0 ? renderSuccessRate : 78}%` }}
+            style={{ width: `${videosCount > 0 ? 100 : 0}%` }}
           />
         </div>
 
-        <div className="stat-footer-text">Local Database State</div>
+        <div className="stat-footer-text">Workspace Video Library</div>
       </div>
 
       {/* 4. Average QC Score */}
@@ -155,7 +161,9 @@ export const StatsRow: React.FC<StatsRowProps> = ({
         </div>
 
         <div className="stat-card-label">Average QC Score</div>
-        <div className="stat-main-number">{displayQc} <span style={{ fontSize: '20px', color: '#94a3b8', fontWeight: 500 }}>/ 100</span></div>
+        <div className="stat-main-number">
+          {displayQc} {videosCount > 0 && <span style={{ fontSize: '20px', color: '#94a3b8', fontWeight: 500 }}>/ 100</span>}
+        </div>
 
         <div className="stat-trend-row">
           <span className="stat-trend-subtext">Hard gate minimum: 90/100</span>

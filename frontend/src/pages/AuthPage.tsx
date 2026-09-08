@@ -34,13 +34,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
     }
   };
 
-  const fillOwnerCredentials = () => {
-    setEmail('kbtteja456@gmail.com');
-    setPassword('@bhanuteja89');
-    setFullName('Bhanu Teja');
-    setError(null);
-  };
-
   return (
     <div className="auth-page-wrapper" style={{
       minHeight: '100vh',
@@ -277,31 +270,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
             {loading ? 'Authenticating...' : isRegister ? 'Launch Free Workspace' : 'Sign In to Dashboard'}
           </button>
         </form>
-
-        {/* Quick Owner Fill Preset */}
-        <div style={{
-          marginTop: '24px',
-          paddingTop: '20px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          textAlign: 'center'
-        }}>
-          <button
-            type="button"
-            onClick={fillOwnerCredentials}
-            style={{
-              background: 'rgba(245, 158, 11, 0.1)',
-              border: '1px solid rgba(245, 158, 11, 0.25)',
-              color: '#f59e0b',
-              borderRadius: '8px',
-              padding: '6px 12px',
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              fontWeight: 600
-            }}
-          >
-            Owner Quick-Fill (kbtteja456@gmail.com)
-          </button>
-        </div>
       </div>
     </div>
   );
