@@ -27,8 +27,26 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     loadAllData();
-    const interval = setInterval(loadAllData, 10000);
-    return () => clearInterval(interval);
+
+    const interval = setInterval(() => {
+      // Don't poll when mobile screen is turned off or tab is in background
+      if (!document.hidden) {
+        loadAllData();
+      }
+    }, 12000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadAllData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const loadAllData = async () => {
