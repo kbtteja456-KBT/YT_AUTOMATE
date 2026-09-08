@@ -203,7 +203,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             lineHeight: 1.22,
             fontWeight: 800,
             letterSpacing: '-1px',
-            background: 'linear-gradient(135deg, #ffffff 20%, #fbbf24 65%, #34d399 100%)',
+            background: 'linear-gradient(135deg, #ffffff 15%, #fde047 40%, #fbbf24 70%, #f59e0b 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             margin: '0 auto 20px auto',
