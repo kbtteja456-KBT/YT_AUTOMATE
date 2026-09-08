@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOwn
           <PlayTileIcon size={38} />
         </div>
         <div className="brand-text">
-          <h1>Shorts Autopilot</h1>
+          <h1>Auto YouTube Video Bot</h1>
           <span className="brand-badge-zero-cost">Multi-Tenant AI</span>
         </div>
       </div>
@@ -81,10 +81,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOwn
             }}
           />
         </div>
-        <div className="sidebar-motto">
-          Automate<br />
-          Create<br />
-          Grow 🚀
+        <div className="sidebar-motto" style={{ marginBottom: '8px' }}>
+          Automate • Create • Grow 🚀
+        </div>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', fontSize: '11px' }}>
+          <a href="/privacy" style={{ color: '#8b949e', textDecoration: 'none' }}>Privacy</a>
+          <span style={{ color: '#30363d' }}>•</span>
+          <a href="/terms" style={{ color: '#8b949e', textDecoration: 'none' }}>Terms</a>
         </div>
       </div>
     </aside>

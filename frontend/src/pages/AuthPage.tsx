@@ -4,9 +4,10 @@ import { PlayIcon, SparklesIcon } from '../components/Icons';
 
 interface AuthPageProps {
   onAuthenticated: (user: UserProfile, workspace: WorkspaceContext) => void;
+  onBack?: () => void;
 }
 
-export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
+export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated, onBack }) => {
   const [isRegister, setIsRegister] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -57,6 +58,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
         position: 'relative',
         overflow: 'hidden'
       }}>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#8b949e',
+              cursor: 'pointer',
+              fontSize: '13px',
+              padding: '0 0 16px 0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            ← Back to Home
+          </button>
+        )}
+
         {/* Subtle Ambient Light Gradient */}
         <div style={{
           position: 'absolute',
@@ -75,24 +95,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
             height: '64px',
             margin: '0 auto 16px auto',
             borderRadius: '18px',
-            background: 'linear-gradient(135deg, #f59e0b 0%, #10b981 100%)',
+            background: 'linear-gradient(135deg, #ff0033 0%, #cc0000 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(245, 158, 11, 0.35)'
+            boxShadow: '0 8px 24px rgba(255, 0, 51, 0.35)'
           }}>
-            <PlayIcon size={32} color="#090c10" />
+            <PlayIcon size={32} color="#ffffff" />
           </div>
           <h1 style={{
             fontSize: '1.75rem',
             fontWeight: 800,
             letterSpacing: '-0.02em',
-            background: 'linear-gradient(to right, #f8fafc, #f59e0b)',
+            background: 'linear-gradient(to right, #f8fafc, #ff3366)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             margin: 0
           }}>
-            YT_AUTOMATE
+            Auto YouTube Video Bot
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '6px' }}>
             Autonomous AI YouTube Shorts Publishing Engine

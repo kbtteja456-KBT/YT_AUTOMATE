@@ -9,6 +9,9 @@ import { StylePage } from './pages/StylePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminPage } from './pages/AdminPage';
 import { AuthPage } from './pages/AuthPage';
+import { LandingPage } from './pages/LandingPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
 import { ApiKeyVaultModal } from './components/ApiKeyVaultModal';
 import {
   api,
@@ -35,6 +38,29 @@ export const App: React.FC = () => {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [publicView, setPublicView] = useState<'landing' | 'auth' | 'privacy' | 'terms'>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname === '/privacy') return 'privacy';
+      if (window.location.pathname === '/terms') return 'terms';
+    }
+    return 'landing';
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname === '/privacy') setPublicView('privacy');
+      else if (window.location.pathname === '/terms') setPublicView('terms');
+      else setPublicView('landing');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (view: 'landing' | 'auth' | 'privacy' | 'terms') => {
+    setPublicView(view);
+    const path = view === 'privacy' ? '/privacy' : view === 'terms' ? '/terms' : '/';
+    window.history.pushState({}, '', path);
+  };
 
   useEffect(() => {
     checkSession();
@@ -156,13 +182,43 @@ export const App: React.FC = () => {
     loadAllData();
   };
 
-  // If unauthenticated, show AuthPage wrapped in CircuitStormCanvas
-  if (!isAuthChecking && !currentUser) {
+  // Public legal compliance routes accessible at any time
+  if (publicView === 'privacy') {
     return (
-      <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
-        <CircuitStormCanvas />
-        <AuthPage onAuthenticated={handleAuthenticated} />
-      </div>
+      <PrivacyPage
+        onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
+      />
+    );
+  }
+
+  if (publicView === 'terms') {
+    return (
+      <TermsPage
+        onBack={() => navigateTo(currentUser ? 'landing' : 'landing')}
+      />
+    );
+  }
+
+  // If unauthenticated: show LandingPage by default, or AuthPage if Sign In was clicked
+  if (!isAuthChecking && !currentUser) {
+    if (publicView === 'auth') {
+      return (
+        <div className="app-container" style={{ position: 'relative', overflow: 'hidden' }}>
+          <CircuitStormCanvas />
+          <AuthPage
+            onAuthenticated={handleAuthenticated}
+            onBack={() => navigateTo('landing')}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <LandingPage
+        onLoginClick={() => navigateTo('auth')}
+        onPrivacyClick={() => navigateTo('privacy')}
+        onTermsClick={() => navigateTo('terms')}
+      />
     );
   }
 
