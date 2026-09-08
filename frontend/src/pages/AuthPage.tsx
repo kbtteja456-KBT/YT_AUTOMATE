@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { api, UserProfile, WorkspaceContext } from '../services/api';
-import { PlayIcon, SparklesIcon } from '../components/Icons';
+import { SparklesIcon } from '../components/Icons';
 
 interface AuthPageProps {
   onAuthenticated: (user: UserProfile, workspace: WorkspaceContext) => void;
@@ -95,19 +95,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated, onBack }) =
             height: '64px',
             margin: '0 auto 16px auto',
             borderRadius: '18px',
-            background: 'linear-gradient(135deg, #ff0033 0%, #cc0000 100%)',
+            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(255, 0, 51, 0.35)'
+            boxShadow: '0 8px 24px rgba(168, 85, 247, 0.4)'
           }}>
-            <PlayIcon size={32} color="#ffffff" />
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
           </div>
           <h1 style={{
             fontSize: '1.75rem',
             fontWeight: 800,
             letterSpacing: '-0.02em',
-            background: 'linear-gradient(to right, #f8fafc, #ff3366)',
+            background: 'linear-gradient(to right, #f8fafc, #a855f7)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             margin: 0

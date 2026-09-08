@@ -35,17 +35,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #ff0033 0%, #cc0000 100%)',
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 16px rgba(255, 0, 51, 0.4)'
+            boxShadow: '0 0 20px rgba(168, 85, 247, 0.45)'
           }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="#ffffff">
-              <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+            {/* Unique Brand Icon: Hexagonal AI Video Synth */}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
             </svg>
           </div>
           <div>
@@ -59,13 +62,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }}>
               Auto YouTube Video Bot
             </h1>
-            <span style={{ fontSize: '11px', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              Autonomous Shorts Engine
+            <span style={{ fontSize: '11px', color: '#a855f7', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+              AI Video Synthesis Engine
             </span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <a
+            href="#purpose"
+            style={{
+              color: '#8b949e',
+              textDecoration: 'none',
+              fontSize: '14px',
+              transition: 'color 0.2s'
+            }}
+          >
+            App Purpose
+          </a>
           <button
             onClick={onPrivacyClick}
             style={{
@@ -95,7 +109,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <button
             onClick={onLoginClick}
             style={{
-              background: 'linear-gradient(135deg, #ff0033 0%, #ff3366 100%)',
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
@@ -103,7 +117,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               fontWeight: 600,
               fontSize: '14px',
               cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(255, 0, 51, 0.35)',
+              boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
               transition: 'transform 0.15s, box-shadow 0.15s'
             }}
           >
@@ -116,21 +130,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section style={{
         maxWidth: '1100px',
         margin: '0 auto',
-        padding: '80px 24px 60px',
+        padding: '80px 24px 40px',
         textAlign: 'center'
       }}>
         <div style={{
           display: 'inline-block',
-          backgroundColor: 'rgba(255, 0, 51, 0.12)',
-          border: '1px solid rgba(255, 0, 51, 0.3)',
+          backgroundColor: 'rgba(99, 102, 241, 0.12)',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
           borderRadius: '999px',
           padding: '6px 18px',
           fontSize: '13px',
           fontWeight: 600,
-          color: '#ff4d6d',
+          color: '#818cf8',
           marginBottom: '24px'
         }}>
-          ⚡ Official YouTube API Integrated Automation
+          ⚡ Official YouTube API Services Developer Compliance
         </div>
 
         <h2 style={{
@@ -152,14 +166,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           margin: '0 auto 36px',
           lineHeight: 1.6
         }}>
-          <strong>Auto YouTube Video Bot</strong> connects securely to your authorized YouTube channel, creates high-retention vertical short videos using intelligent multi-agent scripting, voice synthesis, and dynamic media rendering, and publishes on your automated schedule.
+          <strong>Auto YouTube Video Bot</strong> is a creator automation suite that connects securely to your authorized YouTube channel, creates high-retention vertical short videos using intelligent multi-agent scripting, voice synthesis, and dynamic media rendering, and publishes on your automated schedule.
         </p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '48px' }}>
           <button
             onClick={onLoginClick}
             style={{
-              background: 'linear-gradient(135deg, #ff0033 0%, #ff3366 100%)',
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '10px',
@@ -167,13 +181,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               fontSize: '16px',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 6px 24px rgba(255, 0, 51, 0.45)'
+              boxShadow: '0 6px 24px rgba(99, 102, 241, 0.45)'
             }}
           >
             Get Started Free →
           </button>
-          <button
-            onClick={onPrivacyClick}
+          <a
+            href="#purpose"
             style={{
               background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -182,30 +196,92 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               padding: '16px 28px',
               fontSize: '16px',
               fontWeight: 600,
-              cursor: 'pointer'
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center'
             }}
           >
-            View Privacy Policy
-          </button>
+            Learn App Purpose
+          </a>
+        </div>
+      </section>
+
+      {/* Explicit App Purpose Section for Google Reviewers */}
+      <section id="purpose" style={{
+        maxWidth: '1000px',
+        margin: '0 auto 60px',
+        padding: '40px 32px',
+        backgroundColor: '#0d1117',
+        border: '1px solid #30363d',
+        borderRadius: '20px',
+        boxShadow: '0 16px 48px rgba(0, 0, 0, 0.5)'
+      }}>
+        <div style={{
+          display: 'inline-block',
+          backgroundColor: 'rgba(168, 85, 247, 0.15)',
+          color: '#c084fc',
+          fontSize: '12px',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          padding: '4px 12px',
+          borderRadius: '6px',
+          marginBottom: '16px'
+        }}>
+          About This Application
+        </div>
+        <h2 style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: '32px',
+          fontWeight: 800,
+          color: '#ffffff',
+          marginBottom: '16px'
+        }}>
+          Purpose of Auto YouTube Video Bot
+        </h2>
+        <p style={{ fontSize: '16px', color: '#c9d1d9', lineHeight: 1.7, marginBottom: '20px' }}>
+          <strong>Auto YouTube Video Bot</strong> is designed for independent video creators, educators, and digital marketers seeking to automate repetitive video editing and publishing workflows. Producing consistent, high-quality vertical video shorts requires multiple disconnected steps: script writing, voiceover recording, subtitle synchronization, stock media sourcing, and video rendering.
+        </p>
+        <p style={{ fontSize: '16px', color: '#c9d1d9', lineHeight: 1.7, marginBottom: '28px' }}>
+          Our application solves this problem by providing a unified, multi-agent AI pipeline that handles the creative assembly of short videos and uses the official YouTube Data API v3 to upload them directly to the user's verified YouTube channel according to their custom publishing schedule.
+        </p>
+
+        <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#ffffff', marginBottom: '16px' }}>
+          Why Auto YouTube Video Bot Requests YouTube API Access:
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ backgroundColor: '#161b22', padding: '20px', borderRadius: '12px', border: '1px solid #21262d' }}>
+            <h4 style={{ color: '#58a6ff', margin: '0 0 8px 0', fontSize: '16px' }}>1. Automated Video Publishing</h4>
+            <p style={{ fontSize: '14px', color: '#8b949e', margin: 0, lineHeight: 1.6 }}>
+              Uses the <code>youtube.upload</code> scope to upload user-approved video files directly to the user's connected YouTube channel without requiring manual file downloads and re-uploads.
+            </p>
+          </div>
+          <div style={{ backgroundColor: '#161b22', padding: '20px', borderRadius: '12px', border: '1px solid #21262d' }}>
+            <h4 style={{ color: '#58a6ff', margin: '0 0 8px 0', fontSize: '16px' }}>2. Channel Verification & Analytics</h4>
+            <p style={{ fontSize: '14px', color: '#8b949e', margin: 0, lineHeight: 1.6 }}>
+              Uses the <code>youtube.readonly</code> scope to confirm channel identity and display recent subscriber counts and view analytics in the creator's private workspace dashboard.
+            </p>
+          </div>
         </div>
 
-        {/* YouTube API Disclosure Callout */}
         <div style={{
-          backgroundColor: '#0d1117',
-          border: '1px solid #30363d',
-          borderRadius: '14px',
-          padding: '24px',
-          textAlign: 'left',
-          maxWidth: '820px',
-          margin: '0 auto',
-          boxShadow: '0 12px 36px rgba(0, 0, 0, 0.4)'
+          backgroundColor: 'rgba(56, 139, 253, 0.1)',
+          border: '1px solid rgba(56, 139, 253, 0.3)',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          fontSize: '14px',
+          color: '#e6edf3',
+          lineHeight: 1.6
         }}>
-          <h4 style={{ margin: '0 0 8px 0', color: '#58a6ff', fontSize: '16px' }}>
-            🔒 Official YouTube API Services Developer Disclosure
-          </h4>
-          <p style={{ margin: 0, fontSize: '14px', color: '#c9d1d9', lineHeight: 1.6 }}>
-            Auto YouTube Video Bot connects to YouTube via Google OAuth 2.0 with minimal required permissions (<code>youtube.upload</code> and <code>youtube.readonly</code>). We access channel metadata only to render your workspace dashboard metrics and publish your scheduled Shorts. We never access private messages, personal history, or unrelated account information.
-          </p>
+          <strong>Google API Services User Data Policy Compliance:</strong> Auto YouTube Video Bot's use and transfer to any other app of information received from Google APIs adheres to the{' '}
+          <a
+            href="https://developers.google.com/terms/api-services-user-data-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#58a6ff', textDecoration: 'underline' }}
+          >
+            Google API Services User Data Policy
+          </a>, including the Limited Use requirements.
         </div>
       </section>
 

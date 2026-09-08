@@ -122,10 +122,47 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
 
         <section style={{ marginBottom: '28px' }}>
           <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
-            3. Data Storage, Retention & Security
+            3. Google API Services User Data Policy & Limited Use Disclosure
+          </h2>
+          <div style={{
+            backgroundColor: 'rgba(56, 139, 253, 0.08)',
+            border: '1px solid rgba(56, 139, 253, 0.25)',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '16px'
+          }}>
+            <p style={{ margin: 0, fontWeight: 500 }}>
+              <strong>Auto YouTube Video Bot</strong>'s use and transfer to any other app of information received from Google APIs will adhere to the{' '}
+              <a
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#58a6ff', textDecoration: 'underline' }}
+              >
+                Google API Services User Data Policy
+              </a>, including the <strong>Limited Use requirements</strong>.
+            </p>
+          </div>
+          <p>
+            <strong>Human Review Disclosure:</strong> We do not allow humans to read your YouTube account data or private credentials unless:
+          </p>
+          <ul style={{ paddingLeft: '20px' }}>
+            <li>We have obtained your explicit, affirmative agreement for specific troubleshooting;</li>
+            <li>It is strictly necessary for security purposes (such as investigating abuse or malicious activity);</li>
+            <li>It is required to comply with applicable laws or valid legal process; or</li>
+            <li>It is strictly aggregated and de-identified for the application's internal operational metrics.</li>
+          </ul>
+        </section>
+
+        <section style={{ marginBottom: '28px' }}>
+          <h2 style={{ fontSize: '20px', color: '#ffffff', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
+            4. Data Storage, Retention & Deletion Procedures
           </h2>
           <p>
-            All YouTube OAuth tokens are encrypted at rest in secure databases. Access is strictly scoped to your tenant workspace. Tokens are retained only for as long as your workspace maintains an active connection. If you disconnect your channel or delete your workspace, your stored OAuth tokens and channel metadata are immediately and permanently purged from our database.
+            All YouTube OAuth tokens are encrypted at rest using industry-standard cryptographic algorithms in secure MongoDB databases. Access is strictly isolated per tenant workspace. Tokens are retained only for as long as your workspace maintains an active channel connection.
+          </p>
+          <p>
+            <strong>Data Deletion:</strong> If you disconnect your YouTube channel in your dashboard or delete your workspace account, your stored Google tokens, channel identifiers, and thumbnail data are immediately and permanently erased from all production servers and databases within 24 hours.
           </p>
         </section>
 
