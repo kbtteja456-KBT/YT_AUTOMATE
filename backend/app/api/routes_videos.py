@@ -142,6 +142,18 @@ async def trigger_video_generation(
         if legacy_ws:
             workspace_id = str(legacy_ws["_id"])
 
+    # Resolve niche from workspace if set
+    workspace_niche = "AI & Productivity"
+    if workspace_id:
+        try:
+            ws_obj = db.workspaces.find_one({"_id": ObjectId(workspace_id)}) if ObjectId.is_valid(workspace_id) else db.workspaces.find_one({"_id": workspace_id})
+            if ws_obj:
+                workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche", "AI & Productivity")
+        except Exception:
+            pass
+
+    topic = request.topic or workspace_niche
+
     # Check if this workspace has an active connected YouTube channel
     has_yt = False
     if workspace_id:
@@ -168,7 +180,7 @@ async def trigger_video_generation(
         state=JobState.CREATED,
         idempotency_key=idempotency_key,
         topic=topic,
-        niche="AI & Productivity",
+        niche=workspace_niche,
         is_buffered=False,
         created_at=now,
         updated_at=now,
