@@ -164,7 +164,13 @@ async def execute_slot_pipeline(
             workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Tech & Innovation"
         idemp_prefix = f"autopilot_{date_str}_{workspace_id}_slot{slot_index}"
     else:
+        ws_obj = db.workspaces.find_one({"is_legacy_default": True}) or db.workspaces.find_one()
+        if ws_obj:
+            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Quiz #Shorts"
         idemp_prefix = f"autopilot_{date_str}_slot{slot_index}"
+
+    custom_prompt = ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt") if ws_obj else None
+    pref_format = (ws_obj.get("preferred_format") or ws_obj.get("settings", {}).get("preferred_format") or "auto") if ws_obj else "auto"
 
     idempotency_key = compute_content_hash(idemp_prefix)
     existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})
@@ -231,7 +237,7 @@ async def execute_slot_pipeline(
             "scheduled_at": now,
             "state": JobState.RUNNING.value,
             "idempotency_key": idempotency_key,
-            "topic": custom_topic or workspace_niche,
+            "topic": custom_topic or custom_prompt or workspace_niche,
             "niche": workspace_niche,
             "created_at": now,
             "updated_at": now,
@@ -250,6 +256,8 @@ async def execute_slot_pipeline(
         job_id=job_id,
         niche=workspace_niche,
         custom_topic=custom_topic,
+        custom_prompt=custom_prompt or None,
+        content_format=pref_format,
         publish_immediately=True,
         slot_index=slot_index
     )
@@ -335,8 +343,62 @@ async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str) ->
         _is_tenant_processing = False
 
 
+def reconcile_stuck_in_progress_jobs():
+    """Self-healing sweep: identify jobs left in intermediate states from an interrupted run and reset/recover them."""
+    try:
+        from datetime import timedelta
+        from pathlib import Path
+        from backend.app.core.db import SyncMongoDB
+        from backend.app.models.job import JobState
+        db = SyncMongoDB.get_db()
+        now_utc = datetime.now(timezone.utc)
+        stale_threshold = now_utc - timedelta(minutes=15)
+
+        active_states = [
+            JobState.RUNNING.value,
+            JobState.RESEARCHING.value,
+            JobState.SCRIPTING.value,
+            JobState.STORYBOARDING.value,
+            JobState.GENERATING_MEDIA.value,
+            JobState.GENERATING_VOICE.value,
+            JobState.GENERATING_CAPTIONS.value,
+            JobState.RENDERING.value,
+            JobState.UPLOADING.value,
+        ]
+
+        stale_jobs = list(db.publishing_jobs.find({
+            "state": {"$in": active_states},
+            "$or": [
+                {"updated_at": {"$lt": stale_threshold}},
+                {"updated_at": {"$exists": False}},
+            ]
+        }))
+
+        for job in stale_jobs:
+            job_id = str(job["_id"])
+            vid = db.videos.find_one({"job_id": job_id})
+            if vid and vid.get("file_path") and Path(str(vid["file_path"])).exists():
+                db.publishing_jobs.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {"state": JobState.READY.value, "updated_at": now_utc}}
+                )
+                logger.info(f"🔄 [Self-Healing] Job {job_id} has rendered MP4 on disk. Auto-transitioned to READY for publishing.")
+            else:
+                db.publishing_jobs.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {
+                        "state": JobState.FAILED.value,
+                        "error_message": "Recovered by autonomous reconciliation after system interruption.",
+                        "updated_at": now_utc
+                    }}
+                )
+                logger.info(f"🔄 [Self-Healing] Stale job {job_id} cleared so slot pipeline can run freshly.")
+    except Exception as e:
+        logger.warning(f"[Self-Healing] Reconciliation notice: {e}")
+
+
 async def _scheduler_loop():
-    """Continuous background loop with automatic catch-up recovery.
+    """Continuous background loop with automatic catch-up recovery and self-healing reconciliation.
     - Slot 1 (07:00 AM IST): Active 07:00 - 17:59.
     - Slot 2 (06:00 PM IST): Active 18:00 - 23:59.
     Runs Owner's slot pipeline FIRST, then processes any active tenant workspaces.
@@ -344,11 +406,19 @@ async def _scheduler_loop():
     logger.info(f"Starting Autopilot Scheduler with Catch-Up Recovery: 07:00 & 18:00 ({settings.timezone})")
     tz = zoneinfo.ZoneInfo(settings.timezone)
 
+    # Initial self-healing sweep on startup
+    reconcile_stuck_in_progress_jobs()
+
+    sweep_counter = 0
     while True:
         try:
             if not _is_autopilot_enabled:
                 await asyncio.sleep(15)
                 continue
+
+            sweep_counter += 1
+            if sweep_counter % 20 == 0:  # Every 10 minutes, self-heal any stale interrupted jobs
+                reconcile_stuck_in_progress_jobs()
 
             now = datetime.now(tz)
             today_str = now.strftime("%Y-%m-%d")

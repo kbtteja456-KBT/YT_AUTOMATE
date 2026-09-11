@@ -159,16 +159,8 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             lang_profile=None
         )
 
-    # 2. General Trivia / Riddles / GK (when not explicitly coding)
-    is_coding = any(k in n_lower for k in [
-        "python", "c program", "c++", "cpp", "javascript", "java", "golang", "go program",
-        "rust", "code", "coding", "syntax", "program", "developer", "software", "sql", "html"
-    ])
-
-    if not is_coding and any(k in n_lower for k in [
-        "trivia", "gk", "general knowledge", "riddle", "riddles", "puzzle", "puzzles",
-        "science", "history", "geography", "movie", "quiz", "brain teaser", "guess", "fun fact"
-    ]):
+    # 2. General Trivia / Riddles / GK
+    if any(k in n_lower for k in ["trivia", "gk", "general knowledge", "riddle", "riddles", "brain teaser", "guess", "fun fact"]):
         badge = "RIDDLE CHALLENGE" if "riddle" in n_lower else ("GK QUIZ" if "gk" in n_lower else "TRIVIA QUIZ")
         return ContentArchetype(
             archetype="trivia_quiz",
@@ -179,14 +171,42 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             lang_profile=None
         )
 
-    # 3. Code Quiz (Python, C, C++, Java, JS, etc.)
-    lang_prof = detect_language_from_niche(niche)
+    # 3. Explicit Code Quiz (must be a quiz, challenge, puzzle, or output question)
+    is_long_content = len(n_lower.split()) > 7
+    is_quiz_intent = any(k in n_lower for k in [
+        "quiz", "challenge", "puzzle", "output", "what is the output", "what's the output",
+        "question card", "syntax trap", "mcq", "trick question"
+    ])
+    is_explicit_coding_lang = any(k in n_lower for k in [
+        "python", "c program", "c language", "c lang", "c++", "cpp", "javascript", "java", "golang", "go program", "rust"
+    ]) or bool(re.search(r"\bc\s*(?:language|lang|program|programming|pointer|code|quiz)\b", n_lower))
+
+    is_explicit_coding = (
+        (is_explicit_coding_lang and (not is_long_content or is_quiz_intent))
+        or (is_quiz_intent and ("code" in n_lower or "programming" in n_lower or is_explicit_coding_lang))
+    )
+
+    if is_explicit_coding:
+        lang_prof = detect_language_from_niche(niche)
+        return ContentArchetype(
+            archetype="code_quiz",
+            category="coding",
+            header_title=lang_prof.header_badge,
+            default_hashtag=lang_prof.default_hashtag,
+            hashtags=[lang_prof.default_hashtag, "#coding", "#programming", "#shorts", f"#{lang_prof.slug}quiz"],
+            lang_profile=lang_prof
+        )
+
+    # 4. Universal Documentary & News (Tech News, AI Breakthroughs, Science, History, Informational)
+    # Uses real 1080x1920 stock video footage (Pexels/Pixabay), cinematic motion, voiceover, and captions
+    is_news = any(k in n_lower for k in ["news", "update", "latest", "informational", "discovery", "breakthrough"])
+    topic_header = "TECH NEWS" if is_news else "TECH INSIGHTS"
     return ContentArchetype(
-        archetype="code_quiz",
-        category="coding",
-        header_title=lang_prof.header_badge,
-        default_hashtag=lang_prof.default_hashtag,
-        hashtags=[lang_prof.default_hashtag, "#coding", "#programming", "#shorts", f"#{lang_prof.slug}quiz"],
-        lang_profile=lang_prof
+        archetype="documentary_cinematic",
+        category="documentary",
+        header_title=topic_header,
+        default_hashtag="#technology",
+        hashtags=["#shorts", "#tech", "#technology", "#innovation", "#future"],
+        lang_profile=None
     )
 

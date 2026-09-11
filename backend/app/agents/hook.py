@@ -75,12 +75,15 @@ class HookAgent(BaseAgent):
 
         # Default fallback hooks if LLM returned fewer than 5 or failed
         if len(raw_hooks) < 5:
+            import re
+            clean_top = re.sub(r'#\w+', '', topic).strip()
+            hook_lead = (key_takeaway[:80] if key_takeaway and len(key_takeaway) > 10 else clean_top).rstrip(".!?")
             raw_hooks = [
-                {"text": f"Stop using ChatGPT until you see this {topic} breakthrough.", "curiosity": 9.2, "clarity": 9.0, "specificity": 8.5, "emotional_impact": 8.0, "retention_potential": 9.1, "speed": 9.4},
-                {"text": f"This free tool replaces 4 hours of work in 30 seconds.", "curiosity": 9.0, "clarity": 9.2, "specificity": 8.8, "emotional_impact": 8.5, "retention_potential": 9.0, "speed": 9.2},
-                {"text": f"90% of students have no idea this feature exists.", "curiosity": 8.8, "clarity": 9.1, "specificity": 8.0, "emotional_impact": 8.2, "retention_potential": 8.9, "speed": 9.0},
-                {"text": f"If you use this tool wrong, you're wasting hours.", "curiosity": 8.5, "clarity": 8.9, "specificity": 8.2, "emotional_impact": 8.0, "retention_potential": 8.6, "speed": 9.1},
-                {"text": f"Here's the exact workflow professionals use in 2026.", "curiosity": 8.6, "clarity": 9.3, "specificity": 8.7, "emotional_impact": 8.1, "retention_potential": 8.8, "speed": 8.9},
+                {"text": f"{hook_lead}.", "curiosity": 9.5, "clarity": 9.3, "specificity": 9.1, "emotional_impact": 8.6, "retention_potential": 9.4, "speed": 9.5},
+                {"text": f"Here is what you need to know about {clean_top}.", "curiosity": 9.0, "clarity": 9.2, "specificity": 8.8, "emotional_impact": 8.5, "retention_potential": 9.0, "speed": 9.2},
+                {"text": f"This discovery changes everything about {clean_top}.", "curiosity": 8.8, "clarity": 9.1, "specificity": 8.0, "emotional_impact": 8.2, "retention_potential": 8.9, "speed": 9.0},
+                {"text": f"Why everyone is talking about {clean_top} right now.", "curiosity": 8.5, "clarity": 8.9, "specificity": 8.2, "emotional_impact": 8.0, "retention_potential": 8.6, "speed": 9.1},
+                {"text": f"The hidden truth behind {clean_top} in 30 seconds.", "curiosity": 8.6, "clarity": 9.3, "specificity": 8.7, "emotional_impact": 8.1, "retention_potential": 8.8, "speed": 8.9},
             ]
 
         for h in raw_hooks:

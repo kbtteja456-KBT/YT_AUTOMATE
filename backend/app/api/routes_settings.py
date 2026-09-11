@@ -71,6 +71,9 @@ async def update_settings(
             {"$set": {
                 "niche": updated.niche,
                 "autopilot_enabled": updated.autopilot_enabled,
+                "custom_content_prompt": updated.custom_content_prompt,
+                "default_duration_sec": updated.default_duration_sec,
+                "preferred_format": updated.preferred_format,
                 "settings": dump
             }}
         )

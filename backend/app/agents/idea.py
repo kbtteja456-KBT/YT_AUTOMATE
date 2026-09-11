@@ -60,6 +60,78 @@ C_QUIZ_POOL = [
 ]
 
 
+JAVA_QUIZ_POOL = [
+    {
+        "concept_tag": "java_string_equals",
+        "topic": "Java Quiz: String == vs .equals() Trap #Shorts",
+        "question_code": "public class Main {\n    public static void main(String[] args) {\n        String s1 = \"java\";\n        String s2 = new String(\"java\");\n        System.out.print(s1 == s2);\n    }\n}",
+        "options": ["A) true", "B) false", "C) Error", "D) null"],
+        "correct_option": "B",
+        "explanation": "== compares object memory addresses. new String() creates a separate object on the heap, so s1 == s2 is false."
+    },
+    {
+        "concept_tag": "java_integer_cache",
+        "topic": "Java Quiz: Integer Caching Mystery #Shorts",
+        "question_code": "public class Main {\n    public static void main(String[] args) {\n        Integer a = 127, b = 127;\n        Integer c = 128, d = 128;\n        System.out.print((a == b) + \" \" + (c == d));\n    }\n}",
+        "options": ["A) true true", "B) true false", "C) false false", "D) Error"],
+        "correct_option": "B",
+        "explanation": "Java caches Integer objects from -128 to 127. Values above 127 allocate separate objects, making c == d false."
+    },
+    {
+        "concept_tag": "java_finally_override",
+        "topic": "Java Quiz: finally Block Return Override #Shorts",
+        "question_code": "public class Main {\n    static int test() {\n        try { return 1; }\n        finally { return 2; }\n    }\n    public static void main(String[] args) {\n        System.out.print(test());\n    }\n}",
+        "options": ["A) 1", "B) 2", "C) Compile Error", "D) 0"],
+        "correct_option": "B",
+        "explanation": "The finally block always executes before method exit and overrides any return value in the try block, returning 2."
+    },
+    {
+        "concept_tag": "java_array_length",
+        "topic": "Java Quiz: Array length Field vs Method #Shorts",
+        "question_code": "public class Main {\n    public static void main(String[] args) {\n        int[] arr = new int[3];\n        System.out.print(arr.length);\n    }\n}",
+        "options": ["A) 3", "B) 2", "C) Error", "D) NullPointerException"],
+        "correct_option": "A",
+        "explanation": "In Java, array size is accessed via the final field .length, not a method .length(), outputting 3."
+    },
+    {
+        "concept_tag": "java_post_increment",
+        "topic": "Java Quiz: Post-Increment Self Assignment #Shorts",
+        "question_code": "public class Main {\n    public static void main(String[] args) {\n        int i = 0;\n        i = i++;\n        System.out.print(i);\n    }\n}",
+        "options": ["A) 1", "B) 0", "C) 2", "D) Compile Error"],
+        "correct_option": "B",
+        "explanation": "i++ evaluates to the old value (0) before incrementing, and that old value 0 is assigned back to i, leaving i as 0."
+    }
+]
+
+
+JS_QUIZ_POOL = [
+    {
+        "concept_tag": "js_type_coercion_array",
+        "topic": "JavaScript Quiz: [] + [] Type Coercion #Shorts",
+        "question_code": "console.log([] + []);",
+        "options": ["A) []", "B) \"\"", "C) [object Object]", "D) undefined"],
+        "correct_option": "B",
+        "explanation": "The + operator coerces both empty arrays to empty strings, resulting in an empty string \"\"."
+    },
+    {
+        "concept_tag": "js_typeof_nan",
+        "topic": "JavaScript Quiz: typeof NaN Surprise #Shorts",
+        "question_code": "console.log(typeof NaN);",
+        "options": ["A) \"nan\"", "B) \"number\"", "C) \"undefined\"", "D) \"object\""],
+        "correct_option": "B",
+        "explanation": "In IEEE 754 floating point standard and JavaScript, NaN stands for Not-a-Number, but its type is 'number'."
+    },
+    {
+        "concept_tag": "js_array_sort",
+        "topic": "JavaScript Quiz: Array.sort() Without Comparator #Shorts",
+        "question_code": "const a = [10, 5, 20];\na.sort();\nconsole.log(a[0]);",
+        "options": ["A) 5", "B) 10", "C) 20", "D) Error"],
+        "correct_option": "B",
+        "explanation": "Default Array.prototype.sort() converts elements to strings. In ASCII lexicographical order, '10' comes before '5'."
+    }
+]
+
+
 TRIVIA_QUIZ_POOL = [
     {
         "concept_tag": "trivia_saturn_moons",
@@ -139,7 +211,7 @@ QUOTE_POOL = [
         "author": "Steve Jobs",
         "options": [],
         "correct_option": "",
-        "explanation": "Don't settle for living on autopilot. When you align your work with your purpose, greatness follows naturally."
+        "explanation": "Don't settle for uninspiring work. Pursuing genuine curiosity always leads to breakthroughs."
     },
     {
         "concept_tag": "quote_seneca_time",
@@ -162,6 +234,52 @@ QUOTE_POOL = [
         "options": [],
         "correct_option": "",
         "explanation": "True mastery is not making things complicated, but stripping away the noise until the truth is obvious."
+    }
+]
+
+
+DOCUMENTARY_POOL = [
+    {
+        "concept_tag": "ai_agents_revolution",
+        "topic": "How Autonomous AI Agents Are Transforming Coding #Shorts",
+        "angle": "Tech News & AI Advancements",
+        "hook": "Software engineering is changing faster in 2025 than ever before in human history.",
+        "key_points": [
+            "Autonomous coding agents can now plan, write, test, and deploy full applications in minutes.",
+            "Top tech companies are automating repetitive engineering workflows with self-healing AI loops.",
+            "The developer of tomorrow won't just type code, they'll architect and direct swarms of AI agents."
+        ],
+        "visual_keywords": ["artificial intelligence coding", "futuristic server room with blue lights", "digital data stream technology", "cyberpunk programming"],
+        "call_to_action": "Will AI write all software in 5 years? Drop your thoughts below and subscribe!",
+        "explanation": "AI coding assistants are leaping from auto-complete suggestions to autonomous full-stack engineers."
+    },
+    {
+        "concept_tag": "quantum_computing_turning_point",
+        "topic": "Quantum Computing Just Hit A Massive Breakthrough #Shorts",
+        "angle": "Deep Tech & Future Science",
+        "hook": "What takes the world's fastest supercomputer 10,000 years, quantum chips just solved in minutes.",
+        "key_points": [
+            "Researchers just achieved commercial-grade quantum error correction for the first time.",
+            "This breakthrough opens the door to simulating molecular cures for previously untreatable diseases.",
+            "Global tech giants are racing toward complete quantum advantage faster than anyone expected."
+        ],
+        "visual_keywords": ["quantum computer laboratory", "microchip processor glowing with data", "high tech laser research", "particle physics simulation"],
+        "call_to_action": "Which future tech breakthrough excites you most? Subscribe for daily updates!",
+        "explanation": "Quantum error correction represents the single most important hurdle toward practical commercial quantum supremacy."
+    },
+    {
+        "concept_tag": "humanoid_robots_2025",
+        "topic": "Humanoid Robots Are Finally Entering Real Factories #Shorts",
+        "angle": "Robotics & Automation News",
+        "hook": "The humanoid robot era isn't science fiction anymore—it's actively happening right now.",
+        "key_points": [
+            "Robots powered by multimodal AI vision can now sort components and navigate unpredictable warehouses.",
+            "Leading automotive manufacturers have begun deploying them on live assembly lines.",
+            "Rapid manufacturing advances are predicted to drop costs dramatically over the next two years."
+        ],
+        "visual_keywords": ["humanoid robot walking in modern facility", "smart factory automation", "robotic arm assembly line", "cybernetic mechanical engineering"],
+        "call_to_action": "Would you work side-by-side with a humanoid robot? Let us know and subscribe!",
+        "explanation": "Embodied AI and humanoid robotics are officially graduating from lab demonstrations into industrial utility."
     }
 ]
 
@@ -526,7 +644,13 @@ class IdeaAgent(BaseAgent):
                 "options": item.get("options", []),
                 "correct_option": item.get("correct_option"),
                 "explanation": item.get("explanation"),
-                "content_format": "quiz_card"
+                "content_format": item.get("content_format", "quiz_card"),
+                "hook": item.get("hook"),
+                "key_points": item.get("key_points", []),
+                "visual_keywords": item.get("visual_keywords", []),
+                "call_to_action": item.get("call_to_action"),
+                "quote_text": item.get("quote_text"),
+                "quote_author": item.get("quote_author")
             })
         except Exception:
             pass
@@ -536,11 +660,25 @@ class IdeaAgent(BaseAgent):
         niche: str = "Python Programming",
         target_audience: str = "Developers and Students",
         past_topics: Optional[list[str]] = None,
-        slot_index: int = 1
+        slot_index: int = 1,
+        custom_prompt: Optional[str] = None,
+        content_format: Optional[str] = "auto"
     ) -> dict[str, Any]:
-        """Generate a fresh, unique concept matching the user's niche archetype."""
-        archetype_info = detect_content_archetype(niche)
+        """Generate a fresh, unique concept matching the user's prompt or niche archetype."""
+        effective_niche = (custom_prompt.strip() if custom_prompt and custom_prompt.strip() else niche)
+        archetype_info = detect_content_archetype(effective_niche)
         arch = archetype_info.archetype
+
+        if content_format and content_format != "auto":
+            if content_format in ("documentary", "documentary_cinematic", "news", "informational"):
+                arch = "documentary_cinematic"
+            elif content_format in ("quiz_card", "code_quiz"):
+                arch = "code_quiz"
+            elif content_format in ("quote_card", "quotes"):
+                arch = "quote_card"
+            elif content_format in ("trivia_quiz", "trivia"):
+                arch = "trivia_quiz"
+
 
         past_topics = past_topics or []
         memory = await self._get_content_memory()
@@ -638,7 +776,58 @@ class IdeaAgent(BaseAgent):
             }
 
         # -------------------------------------------------------------
-        # 3. CODE QUIZ ARCHETYPE (Python for Owner, Target Language for Tenants)
+        # 3. DOCUMENTARY / TECH NEWS ARCHETYPE (Universal Topics)
+        # -------------------------------------------------------------
+        elif arch == "documentary_cinematic":
+            self.log(f"Generating Documentary/News Short concept for prompt: '{effective_niche}'...")
+            prompt = (
+                f"Generate 3 distinct, viral, high-retention documentary or informational video concepts based on this user prompt/niche:\n"
+                f"Prompt: '{effective_niche}'.\n"
+                f"Target audience: curious viewers on YouTube Shorts.\n"
+                f"CRITICAL: DO NOT use any of these recently covered concepts: [{excluded_tags_str}].\n"
+                f"RULES:\n"
+                f"1. 'topic': Viral, clickable Short title ending with #Shorts (e.g. 'How AI Agents Are Taking Over Coding #Shorts').\n"
+                f"2. 'hook': 0-3 second mind-blowing or curiosity-inducing opening line.\n"
+                f"3. 'key_points': Array of exactly 3 punchy factual points or narrative beats (under 20 words each).\n"
+                f"4. 'visual_keywords': Array of 4-5 descriptive B-roll search queries for stock footage (e.g. 'futuristic server room with glowing lights', 'robotic arm working', 'digital data matrix').\n"
+                f"5. 'call_to_action': Engaging 1-sentence prompt asking viewers to comment or subscribe.\n"
+                f"6. 'explanation': 1-2 sentence core thesis explaining why this matters.\n"
+                f"7. 'concept_tag': Unique slug (e.g. 'ai_agents_revolution')."
+            )
+            system_prompt = "You are an award-winning science & tech documentary producer creating viral, fast-paced YouTube Shorts."
+            fallback_pool = DOCUMENTARY_POOL
+            schema = {
+                "type": "object",
+                "properties": {
+                    "candidates": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "topic": {"type": "string"},
+                                "angle": {"type": "string"},
+                                "concept_tag": {"type": "string"},
+                                "hook": {"type": "string"},
+                                "key_points": {
+                                    "type": "array",
+                                    "items": {"type": "string"}
+                                },
+                                "visual_keywords": {
+                                    "type": "array",
+                                    "items": {"type": "string"}
+                                },
+                                "call_to_action": {"type": "string"},
+                                "explanation": {"type": "string"}
+                            },
+                            "required": ["topic", "hook", "key_points", "visual_keywords", "explanation"]
+                        }
+                    }
+                },
+                "required": ["candidates"]
+            }
+
+        # -------------------------------------------------------------
+        # 4. CODE QUIZ ARCHETYPE (Python for Owner, Target Language for Tenants)
         # -------------------------------------------------------------
         else:
             lang_profile = archetype_info.lang_profile or detect_language_from_niche(niche)
@@ -673,7 +862,14 @@ class IdeaAgent(BaseAgent):
                     f"4. Avoid recently covered topics: {past_topics[-10:] if past_topics else 'None'}."
                 )
                 system_prompt = f"You are an expert {lang_profile.display_name} educator creating deceptive, educational 'What's the output?' quiz Shorts."
-                fallback_pool = C_QUIZ_POOL if lang_profile.slug == "c" else PYTHON_QUIZ_POOL
+                if lang_profile.slug in ("c", "cpp"):
+                    fallback_pool = C_QUIZ_POOL
+                elif lang_profile.slug == "java":
+                    fallback_pool = JAVA_QUIZ_POOL
+                elif lang_profile.slug == "javascript":
+                    fallback_pool = JS_QUIZ_POOL
+                else:
+                    fallback_pool = PYTHON_QUIZ_POOL
 
             schema = {
                 "type": "object",
@@ -721,11 +917,48 @@ class IdeaAgent(BaseAgent):
         ]
 
         if not valid_ai_candidates:
-            available_pool = [q for q in fallback_pool if q.get("concept_tag") not in recent_concepts[:25]]
-            if not available_pool:
-                available_pool = [q for q in fallback_pool if q.get("concept_tag") not in recent_concepts[:10]]
-            candidates = list(available_pool or fallback_pool)
-            random.shuffle(candidates)
+            if custom_prompt and custom_prompt.strip() and arch == "documentary_cinematic":
+                # Build concept strictly from user-provided content
+                clean_p = custom_prompt.strip()
+                lines = [l.strip() for l in clean_p.splitlines() if l.strip()]
+                first_line = lines[0] if lines else clean_p
+                import re
+                first_sent = re.split(r'[.!?:]', first_line)[0].strip()
+                title_words = first_sent.split()
+                derived_title = " ".join(title_words[:8]).strip()
+                if "#Shorts" not in derived_title:
+                    derived_title = f"{derived_title} #Shorts"
+
+                raw_tokens = [
+                    w.lower() for w in re.split(r'[^a-zA-Z0-9]', clean_p)
+                    if len(w) > 3 and w.lower() not in {
+                        "this", "that", "with", "from", "have", "they", "will", "what",
+                        "when", "where", "which", "about", "their", "there", "more", "into"
+                    }
+                ]
+                kws = []
+                for idx in range(0, min(len(raw_tokens) - 1, 8), 2):
+                    kws.append(f"{raw_tokens[idx]} {raw_tokens[idx + 1]}")
+                if not kws:
+                    kws = [derived_title.replace("#Shorts", "").strip()]
+
+                candidates = [{
+                    "topic": derived_title,
+                    "angle": first_sent,
+                    "concept_tag": f"custom_{compute_content_hash(clean_p)[:8]}",
+                    "hook": first_sent,
+                    "key_points": lines[1:4] if len(lines) > 1 else [clean_p[:140]],
+                    "visual_keywords": kws[:4],
+                    "call_to_action": "Follow for daily insights.",
+                    "explanation": first_sent,
+                    "content_format": "documentary"
+                }]
+            else:
+                available_pool = [q for q in fallback_pool if q.get("concept_tag") not in recent_concepts[:25]]
+                if not available_pool:
+                    available_pool = [q for q in fallback_pool if q.get("concept_tag") not in recent_concepts[:10]]
+                candidates = list(available_pool or fallback_pool)
+                random.shuffle(candidates)
         else:
             candidates = valid_ai_candidates
 
@@ -793,6 +1026,30 @@ class IdeaAgent(BaseAgent):
                 "language": "trivia",
                 "similarity_score": round(lowest_similarity, 3),
                 "hash": compute_content_hash(q_code)
+            }
+        elif arch == "documentary_cinematic":
+            hook = chosen.get("hook") or default_item.get("hook", chosen_topic)
+            key_pts = chosen.get("key_points") or default_item.get("key_points", [])
+            visual_kw = chosen.get("visual_keywords") or default_item.get("visual_keywords", ["technology", "futuristic server"])
+            cta = chosen.get("call_to_action") or default_item.get("call_to_action", "Subscribe for more daily tech breakthroughs!")
+            explanation = chosen.get("explanation") or chosen.get("hook") or chosen_topic
+            result = {
+                "topic": chosen_topic,
+                "angle": chosen.get("angle", "Tech News and Future Insights"),
+                "why_viral": "High curiosity and cutting-edge tech fascination",
+                "concept_tag": concept_tag,
+                "hook": hook,
+                "key_points": key_pts,
+                "visual_keywords": visual_kw,
+                "call_to_action": cta,
+                "question_code": hook,
+                "options": [],
+                "correct_option": "",
+                "explanation": explanation,
+                "content_format": "documentary",
+                "language": "tech_documentary",
+                "similarity_score": round(lowest_similarity, 3),
+                "hash": compute_content_hash(chosen_topic)
             }
         else:
             lang_profile = archetype_info.lang_profile or detect_language_from_niche(niche)

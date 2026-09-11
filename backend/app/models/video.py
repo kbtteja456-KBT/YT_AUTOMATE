@@ -11,6 +11,8 @@ class VisualType(str, Enum):
     USER_MEDIA = "user_media"
     SCREEN_RECORDING = "screen_recording"
     STOCK_FOOTAGE = "stock_footage"
+    STOCK_PHOTO = "stock_photo"
+    PHOTO = "photo"
     GENERATED_IMAGE = "generated_image"
     MOTION_GRAPHIC = "motion_graphic"
     ANIMATED_IMAGE = "animated_image"
@@ -44,6 +46,7 @@ class ResearchReport(MongoBaseModel):
     question_text: Optional[str] = None
     quote_text: Optional[str] = None
     quote_author: Optional[str] = None
+    visual_keywords: list[str] = Field(default_factory=list)
 
 
 class Hook(MongoBaseModel):
@@ -81,6 +84,7 @@ class Script(MongoBaseModel):
     question_text: Optional[str] = None
     quote_text: Optional[str] = None
     quote_author: Optional[str] = None
+    visual_keywords: list[str] = Field(default_factory=list)
 
 
 class CaptionWord(MongoBaseModel):

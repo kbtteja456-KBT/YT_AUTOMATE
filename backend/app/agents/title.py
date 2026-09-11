@@ -146,9 +146,13 @@ class TitleAgent(BaseAgent):
             },
             "required": ["title", "hashtags", "tags"]
         }
-        title = f"{script.topic} in 60 Seconds"
-        hashtags = ["#Shorts", "#AI", "#Productivity"]
-        tags = [script.topic, "AI", "Tech Tools", "Productivity"]
+        import re
+        clean_top = re.sub(r'#\w+', '', script.topic).strip()
+        title = f"{clean_top} in 60 Seconds #Shorts" if len(clean_top) < 45 else f"{clean_top} #Shorts"
+        clean_words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in clean_top.split() if len(w) > 3]
+        topic_tags = [w for w in clean_words if w.lower() not in {"shorts", "about", "with", "this", "that", "from", "into"}][:4]
+        hashtags = ["#Shorts"] + [f"#{t.capitalize()}" for t in topic_tags[:3]]
+        tags = [clean_top] + topic_tags + ["Trending", "Discovery"]
         try:
             resp = await self.ai.generate_structured(prompt=prompt, response_schema=schema)
             title = resp.get("title", title).strip()
@@ -215,9 +219,8 @@ class DescriptionAgent(BaseAgent):
                 f"{music_credit_block}\n"
                 f"{tag_str}"
             )
-            return description
 
-        if c_format == "trivia_quiz":
+        elif c_format == "trivia_quiz":
             opt_text = "\n".join(script.options) if script.options else ""
             description = (
                 f"{title}\n\n"
@@ -232,9 +235,8 @@ class DescriptionAgent(BaseAgent):
                 f"{music_credit_block}\n"
                 f"{tag_str}"
             )
-            return description
 
-        if is_quiz:
+        elif is_quiz:
             lang_profile = detect_language_from_niche(getattr(script, "language", None) or getattr(script, "niche", None) or title)
             lang_name = lang_profile.display_name
             opt_text = "\n".join(script.options) if script.options else ""
@@ -252,15 +254,17 @@ class DescriptionAgent(BaseAgent):
                 f"{music_credit_block}\n"
                 f"{tag_str}"
             )
-            return description
 
-        # General format fallback
-        description = (
-            f"{title}\n\n"
-            f"{script.value}\n\n"
-            f"🔔 Follow for daily autonomous tech and AI discoveries.\n"
-            f"{music_credit_block}\n"
-            f"{tag_str}"
-        )
-        return description
+        else:
+            # General format fallback
+            description = (
+                f"{title}\n\n"
+                f"{script.value}\n\n"
+                f"🔔 Follow for daily discoveries and insights.\n"
+                f"{music_credit_block}\n"
+                f"{tag_str}"
+            )
+
+        # YouTube Data API strictly forbids '<' and '>' in descriptions
+        return description.replace("<", "[").replace(">", "]")[:5000]
 

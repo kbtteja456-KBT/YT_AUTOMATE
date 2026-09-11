@@ -73,8 +73,8 @@ class StoryboardAgent(BaseAgent):
             f"For each scene, provide:\n"
             f"- 'scene_id': integer matching slot\n"
             f"- 'narration': spoken segment\n"
-            f"- 'visual_type': one of ['motion_graphic', 'screen_recording', 'stock_footage', 'generated_image']\n"
-            f"- 'visual_prompt': detailed description\n"
+            f"- 'visual_type': one of ['stock_footage', 'stock_photo'] (alternate between motion video clips and high-res photos with Ken Burns zoom according to the concept)\n"
+            f"- 'visual_prompt': concrete physical subject to display (e.g. 'coding on computer screen', 'developer typing keyboard', 'server room blinking lights'). Avoid vague or abstract terms.\n"
             f"- 'caption': short punchy on-screen caption (max 4-5 words)\n"
             f"- 'transition': 'cut', 'fade', or 'zoom'"
         )
@@ -107,27 +107,31 @@ class StoryboardAgent(BaseAgent):
         except Exception:
             raw_scenes = []
 
+        kws = getattr(script, "visual_keywords", []) or []
+
         scenes: list[Scene] = []
         for slot in rhythm_slots:
             sid = slot["scene_id"]
             matched_raw = next((r for r in raw_scenes if r.get("scene_id") == sid), None)
             if matched_raw:
                 v_prompt = matched_raw.get("visual_prompt", f"Dynamic visual for scene {sid}")
-                v_type_str = matched_raw.get("visual_type", slot["visual_type"].value)
+                v_type_raw = matched_raw.get("visual_type", "").lower()
+                if "photo" in v_type_raw or "image" in v_type_raw or "still" in v_type_raw:
+                    v_type = VisualType.STOCK_PHOTO
+                elif "video" in v_type_raw or "footage" in v_type_raw or "clip" in v_type_raw:
+                    v_type = VisualType.STOCK_FOOTAGE
+                else:
+                    v_type = slot["visual_type"]
                 caption_text = matched_raw.get("caption", "")
                 narration_sub = matched_raw.get("narration", "")
                 trans = matched_raw.get("transition", "cut")
             else:
-                v_prompt = f"High energy graphics showing {script.topic} scene {sid}"
-                v_type_str = slot["visual_type"].value
-                caption_text = f"Tool #{sid}" if sid > 1 else script.hook[:20]
+                kw = kws[(sid - 1) % len(kws)] if kws else script.topic
+                v_prompt = kw
+                v_type = slot["visual_type"]
+                caption_text = f"Point #{sid}" if sid > 1 else script.hook[:20]
                 narration_sub = ""
                 trans = "cut"
-
-            try:
-                v_type = VisualType(v_type_str)
-            except ValueError:
-                v_type = VisualType.MOTION_GRAPHIC
 
             scenes.append(Scene(
                 scene_id=sid,

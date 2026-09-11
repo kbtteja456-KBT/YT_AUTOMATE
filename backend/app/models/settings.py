@@ -35,6 +35,9 @@ class ChannelSettings(MongoBaseModel):
     niche: str = Field(default="AI & Productivity Tools", description="Content niche")
     target_audience: str = Field(default="Students and Tech Enthusiasts", description="Target viewer persona")
     language: str = Field(default="en", description="Target audio/caption language")
+    custom_content_prompt: str = Field(default="", description="Detailed custom content, notes, instructions, or full text")
+    default_duration_sec: int = Field(default=45, description="Target duration in seconds (30, 45, or 60)")
+    preferred_format: str = Field(default="auto", description="Preferred format: auto, documentary, quiz_card, quote_card, trivia_quiz")
     
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)

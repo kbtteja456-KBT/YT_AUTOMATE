@@ -66,15 +66,27 @@ class YouTubeClientProvider(YouTubeProvider):
             logger.error(f"YouTube Data API error: {e}")
             raise YouTubeAPIError(f"YouTube Data API error: {e}")
 
+    @staticmethod
+    def sanitize_youtube_text(text: Optional[str], max_length: int = 5000) -> str:
+        """Sanitize text for YouTube Data API compliance (strips < and > to prevent 400 invalidDescription)."""
+        if not text:
+            return ""
+        # YouTube strictly forbids '<' and '>' in title and description
+        cleaned = text.replace("<", "[").replace(">", "]")
+        # Remove any illegal control characters except standard whitespace
+        cleaned = "".join(ch for ch in cleaned if ch in ("\n", "\r", "\t") or ord(ch) >= 32)
+        return cleaned[:max_length].strip()
+
     async def upload_short(
         self,
         video_filepath: str,
         title: str,
         description: str,
         tags: list[str],
-        privacy_status: str = "public"
+        privacy_status: str = "public",
+        _is_retry: bool = False
     ) -> dict[str, Any]:
-        """Upload video via resumable upload protocol and return real video ID."""
+        """Upload video via resumable upload protocol and return real video ID with auto-sanitization and self-healing."""
         self.verify_zero_cost_compliance()
 
         vid_path = Path(video_filepath).resolve()
@@ -85,11 +97,17 @@ class YouTubeClientProvider(YouTubeProvider):
         file_hash = compute_file_hash(str(vid_path))
         logger.info(f"Initiating YouTube resumable upload for {vid_path.name} (hash: {file_hash[:12]})...")
 
+        # Sanitize metadata for YouTube Data API v3 compliance
+        safe_title = self.sanitize_youtube_text(title, max_length=100)
+        full_desc = f"{description}\n\n#Shorts #Tech #AI"
+        safe_description = self.sanitize_youtube_text(full_desc, max_length=5000)
+        safe_tags = [self.sanitize_youtube_text(t, max_length=30) for t in (tags + ["Shorts", "YouTubeShorts"]) if t]
+
         body = {
             "snippet": {
-                "title": title,
-                "description": f"{description}\n\n#Shorts #Tech #AI",
-                "tags": tags + ["Shorts", "YouTubeShorts"],
+                "title": safe_title,
+                "description": safe_description,
+                "tags": safe_tags,
                 "categoryId": "28"  # Science & Technology
             },
             "status": {
@@ -133,12 +151,34 @@ class YouTubeClientProvider(YouTubeProvider):
                 "video_id": video_id,
                 "url": youtube_url,
                 "file_hash": file_hash,
-                "title": title,
+                "title": safe_title,
                 "privacy_status": privacy_status,
                 "uploaded_at": time.time()
             }
 
         except HttpError as e:
+            err_content = str(e)
+            # Automatic Self-Healing: If metadata rejected (e.g. invalid description/title), retry once with clean minimal text
+            if ("invalidDescription" in err_content or "invalidTitle" in err_content or getattr(e, "resp", {}).get("status") == 400) and not _is_retry:
+                logger.warning(f"⚠️ [Self-Healing YouTube Upload] Metadata rejected by YouTube: {e}. Auto-cleaning metadata and retrying upload...")
+                # Strip all code fences, include statements, and complex markdown
+                stripped_lines = [
+                    line for line in description.splitlines() 
+                    if not line.strip().startswith("```") and "#include" not in line and "<" not in line and ">" not in line
+                ]
+                fallback_desc = self.sanitize_youtube_text("\n".join(stripped_lines), max_length=2000)
+                if not fallback_desc.strip():
+                    fallback_desc = f"{safe_title}\n\n#Shorts #Tech #AI #Programming"
+                
+                return await self.upload_short(
+                    video_filepath=video_filepath,
+                    title=safe_title,
+                    description=fallback_desc,
+                    tags=["Shorts", "Tech", "Coding"],
+                    privacy_status=privacy_status,
+                    _is_retry=True
+                )
+
             logger.error(f"YouTube upload failed: {e}")
             raise YouTubeAPIError(f"Upload failed: {e}")
 

@@ -123,28 +123,122 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Content Niche & Audience</h3>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-              Niche
+            <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px' }}>Content, Concept & Duration Configuration</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
+              Specify your full content, custom topic instructions, video duration, and preferred visual format.
+            </p>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', display: 'block', marginBottom: '6px' }}>
+              Primary Channel Niche
             </label>
             <input
               type="text"
-              value={settings.niche}
+              value={settings.niche || ''}
+              placeholder="e.g. Python Programming, AI & Tech News, Deep Science, Stoic Philosophy"
               onChange={(e) => setSettings({ ...settings, niche: e.target.value })}
-              style={{ width: '100%', padding: '8px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: '#fff' }}
+              style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: '#fff', fontSize: '14px' }}
             />
           </div>
+
           <div>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-              Target Audience
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', display: 'block', marginBottom: '6px' }}>
+              Full Content, Custom Topic & Script Guidelines
+            </label>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              Enter full content, article summary, notes, or detailed instructions. The system will analyze this and generate videos strictly aligned with your text.
+            </p>
+            <textarea
+              rows={4}
+              value={settings.custom_content_prompt || ''}
+              placeholder="e.g. Explain how autonomous AI coding agents work in 2026, including their reasoning loops, sandbox execution, and why developers use them. Focus on practical insights and real-world tools..."
+              onChange={(e) => setSettings({ ...settings, custom_content_prompt: e.target.value })}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '12px',
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                color: '#fff',
+                fontSize: '13.5px',
+                lineHeight: 1.5,
+                resize: 'vertical',
+                fontFamily: 'inherit'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', display: 'block', marginBottom: '6px' }}>
+                Video Duration
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[30, 45, 60].map((sec) => (
+                  <button
+                    type="button"
+                    key={sec}
+                    onClick={() => setSettings({ ...settings, default_duration_sec: sec })}
+                    style={{
+                      flex: 1,
+                      padding: '8px 0',
+                      borderRadius: '8px',
+                      background: (settings.default_duration_sec || 45) === sec ? '#2563eb' : 'rgba(0,0,0,0.3)',
+                      border: `1px solid ${(settings.default_duration_sec || 45) === sec ? '#3b82f6' : 'var(--border-subtle)'}`,
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {sec}s
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', display: 'block', marginBottom: '6px' }}>
+                Preferred Visual Format
+              </label>
+              <select
+                value={settings.preferred_format || 'auto'}
+                onChange={(e) => setSettings({ ...settings, preferred_format: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  background: '#1e293b',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: '#fff',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                <option value="auto">✨ Auto-Detect from Content</option>
+                <option value="documentary">📹 Documentary & Stories (Hybrid Videos & Photos)</option>
+                <option value="quiz_card">💻 Code Quiz Challenge (Interactive Syntax Card)</option>
+                <option value="quote_card">🏛️ Daily Motivation & Wisdom (Quote Card)</option>
+                <option value="trivia_quiz">🧠 Trivia Riddle & Brain Teaser (Question Card)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', display: 'block', marginBottom: '6px' }}>
+              Target Audience Persona
             </label>
             <input
               type="text"
-              value={settings.target_audience}
+              value={settings.target_audience || ''}
+              placeholder="e.g. Students, Junior Developers, Tech Enthusiasts"
               onChange={(e) => setSettings({ ...settings, target_audience: e.target.value })}
-              style={{ width: '100%', padding: '8px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: '#fff' }}
+              style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: '#fff', fontSize: '14px' }}
             />
           </div>
         </div>

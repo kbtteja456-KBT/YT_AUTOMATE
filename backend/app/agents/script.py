@@ -169,6 +169,73 @@ class ScriptAgent(BaseAgent):
             self.log(f"Quiz script finalized: {script.word_count} words (~{eff_duration}s)")
             return script
 
+        # -------------------------------------------------------------
+        # 4. DOCUMENTARY / TECH NEWS FORMAT
+        # -------------------------------------------------------------
+        if c_format in ("documentary", "documentary_cinematic"):
+            eff_duration = target_duration_sec or 45.0
+            target_word_count = int(eff_duration * 2.6)
+            hook_hint = hook.strip() if hook else f"Here is what you need to know about {topic}."
+            facts_list = [i.fact for i in research.items] if research.items else [research.key_takeaway or topic]
+            facts_str = "\n".join(f"- {f}" for f in facts_list)
+
+            prompt = (
+                f"Topic: '{topic}'.\n"
+                f"Opening Hook: '{hook_hint}'.\n"
+                f"Core Facts/Points:\n{facts_str}\n\n"
+                f"Target duration: ~{eff_duration}s (~{target_word_count} spoken words).\n"
+                f"Tone: Fast-paced, punchy, engaging science & tech journalism with zero filler.\n"
+                f"Write high-retention narration split into 5 sections:\n"
+                f"1. 'hook': 0-3s bold opener that immediately grabs attention.\n"
+                f"2. 'problem': 3-10s setup introducing the breakthrough or news event.\n"
+                f"3. 'value': 10-25s the core details and why this matters.\n"
+                f"4. 'payoff': 25-38s the surprising insight or future implication.\n"
+                f"5. 'cta': 38-45s punchy call-to-action asking viewers to comment and subscribe."
+            )
+            schema = {
+                "type": "object",
+                "properties": {
+                    "hook": {"type": "string"},
+                    "problem": {"type": "string"},
+                    "value": {"type": "string"},
+                    "payoff": {"type": "string"},
+                    "cta": {"type": "string"}
+                },
+                "required": ["hook", "problem", "value", "payoff", "cta"]
+            }
+            try:
+                resp = await self.ai.generate_structured(prompt=prompt, response_schema=schema)
+                h = resp.get("hook", hook_hint).strip()
+                p = resp.get("problem", "The tech world just reached a massive milestone.").strip()
+                v = resp.get("value", research.key_takeaway or facts_list[0]).strip()
+                po = resp.get("payoff", "This fundamentally shifts how we interact with technology.").strip()
+                c = resp.get("cta", "What do you think about this breakthrough? Let me know in the comments and subscribe!").strip()
+            except Exception:
+                import re
+                clean_t = re.sub(r'#\w+', '', topic).strip()
+                h = hook_hint or f"Here is what just happened with {clean_t}."
+                p = f"Researchers and builders just reached a massive milestone in {clean_t}."
+                v = research.key_takeaway or (facts_list[0] if facts_list else clean_t)
+                po = "This fundamentally accelerates real-world capability and changes what is possible this decade."
+                c = "What are your thoughts on this? Comment below and subscribe for more updates!"
+
+            full_narration = f"{h} {p} {v} {po} {c}"
+            return Script(
+                topic=topic,
+                hook=h,
+                problem=p,
+                value=v,
+                payoff=po,
+                cta=c,
+                full_narration=full_narration,
+                target_duration_sec=eff_duration,
+                word_count=len(full_narration.split()),
+                content_format="documentary",
+                concept_tag=research.concept_tag or "tech_news",
+                language="tech_documentary",
+                visual_keywords=getattr(research, "visual_keywords", [])
+            )
+
         # Standard general format fallback
         target_word_count = int(target_duration_sec * 2.8)
         prompt = (

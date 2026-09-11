@@ -13,6 +13,7 @@ import { LandingPage } from './pages/LandingPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { ApiKeyVaultModal } from './components/ApiKeyVaultModal';
+import { CreateVideoModal } from './components/CreateVideoModal';
 import {
   api,
   getToken,
@@ -30,6 +31,7 @@ export const App: React.FC = () => {
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceContext | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [isVaultOpen, setIsVaultOpen] = useState<boolean>(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [autopilotStatus, setAutopilotStatus] = useState<AutopilotStatusResponse | null>(null);
@@ -37,7 +39,7 @@ export const App: React.FC = () => {
   const [activityEvents, setActivityEvents] = useState<ActivityEventItem[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isGenerating] = useState<boolean>(false);
   const [publicView, setPublicView] = useState<'landing' | 'auth' | 'privacy' | 'terms'>(() => {
     if (typeof window !== 'undefined') {
       if (window.location.pathname === '/privacy') return 'privacy';
@@ -165,20 +167,13 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleTriggerGenerate = async () => {
-    const topic = prompt('Enter Short topic (or leave empty for AI niche discovery):');
-    if (topic === null) return;
+  const handleTriggerGenerate = () => {
+    setIsCreateModalOpen(true);
+  };
 
-    setIsGenerating(true);
-    try {
-      const res = await api.triggerGenerate(topic || undefined);
-      alert(`Job Queued! ID: ${res.job_id}`);
-      await loadAllData();
-    } catch (e: any) {
-      alert(`Error queuing job: ${e.message}`);
-    } finally {
-      setIsGenerating(false);
-    }
+  const handleVideoQueued = (_jobId: string) => {
+    loadAllData();
+    setActiveTab('videos');
   };
 
   const handleVideoDeleted = (deletedId: string) => {
@@ -313,6 +308,14 @@ export const App: React.FC = () => {
         isOpen={isVaultOpen}
         onClose={() => setIsVaultOpen(false)}
         onKeysUpdated={loadAllData}
+      />
+
+      <CreateVideoModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onVideoQueued={handleVideoQueued}
+        defaultNiche={currentWorkspace?.niche}
+        hasConnectedChannel={Boolean(channelInfo?.is_connected)}
       />
     </div>
   );

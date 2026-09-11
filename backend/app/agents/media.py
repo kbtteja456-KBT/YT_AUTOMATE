@@ -30,13 +30,27 @@ class MediaAgent(BaseAgent):
                 "language": getattr(script, "language", "python"),
             }
 
-        # Query MongoDB content_ideas for the active job or latest record
+        # Query MongoDB for the active job's niche and topic
         try:
             from backend.app.core.db import SyncMongoDB
+            from bson import ObjectId
+            from backend.app.core.language_detector import detect_language_from_niche
+            from backend.app.agents.idea import C_QUIZ_POOL, JAVA_QUIZ_POOL, JS_QUIZ_POOL
             db = SyncMongoDB.get_db()
-            doc = db.content_ideas.find_one({"content_format": "quiz_card"}, sort=[("created_at", -1)])
-            if doc and doc.get("question_code"):
-                return doc
+            q_job = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+            job_record = db.publishing_jobs.find_one(q_job)
+            if job_record:
+                niche = job_record.get("niche") or ""
+                lang_prof = detect_language_from_niche(niche)
+                doc = db.content_ideas.find_one({"topic": job_record.get("topic")})
+                if doc and doc.get("question_code"):
+                    return {**doc, "language": lang_prof.slug}
+                if lang_prof.slug in ("c", "cpp"):
+                    return {**C_QUIZ_POOL[0], "language": lang_prof.slug}
+                elif lang_prof.slug == "java":
+                    return {**JAVA_QUIZ_POOL[0], "language": "java"}
+                elif lang_prof.slug == "javascript":
+                    return {**JS_QUIZ_POOL[0], "language": "javascript"}
         except Exception:
             pass
 
@@ -79,6 +93,7 @@ class MediaAgent(BaseAgent):
                 content_format=card_format
             )
 
+        used_media_urls: set[str] = set()
         updated_scenes: list[Scene] = []
         for scene in storyboard.scenes:
             v_type = scene.visual_type.value if hasattr(scene.visual_type, "value") else str(scene.visual_type)
@@ -93,12 +108,29 @@ class MediaAgent(BaseAgent):
                 scene.attribution = "Internal Engine"
             else:
                 duration = scene.end - scene.start
+                query = scene.visual_prompt
+                if script and getattr(script, "visual_keywords", None):
+                    kws = script.visual_keywords
+                    # Cycle through distinct keywords per scene
+                    query = kws[(scene.scene_id - 1) % len(kws)]
+                elif script and script.topic:
+                    import re
+                    clean_t = re.sub(r'#\w+', '', script.topic)
+                    clean_t = re.sub(r'(?i)\b(?:in 60 seconds|shorts|short|video|scene \d+|high energy graphics showing)\b', '', clean_t).strip()
+                    query = clean_t or scene.visual_prompt
+
                 acquired_scene = await self.stock.search_and_acquire(
-                    query=scene.visual_prompt,
+                    query=query,
                     duration_sec=duration,
                     target_dir=target_dir,
-                    visual_type=v_type
+                    visual_type=v_type,
+                    exclude_urls=used_media_urls
                 )
+                if acquired_scene.asset_url:
+                    used_media_urls.add(acquired_scene.asset_url)
+                if acquired_scene.asset_local_path:
+                    used_media_urls.add(acquired_scene.asset_local_path)
+
                 scene.asset_local_path = acquired_scene.asset_local_path
                 scene.license_info = acquired_scene.license_info
                 scene.attribution = acquired_scene.attribution
@@ -106,5 +138,5 @@ class MediaAgent(BaseAgent):
             updated_scenes.append(scene)
 
         storyboard.scenes = updated_scenes
-        self.log(f"All {len(storyboard.scenes)} scene visual assets collected successfully.")
+        self.log(f"All {len(storyboard.scenes)} scene visual assets collected successfully (distinct assets: {len(used_media_urls)}).")
         return storyboard

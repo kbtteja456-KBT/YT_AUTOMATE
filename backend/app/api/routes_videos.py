@@ -20,10 +20,18 @@ router = APIRouter(prefix="/videos", tags=["videos"])
 
 
 class GenerateVideoRequest(BaseModel):
-    topic: Optional[str] = Field(default=None, description="Optional custom topic")
+    topic: Optional[str] = Field(default=None, description="Optional custom topic or title")
+    prompt: Optional[str] = Field(default=None, description="User prompt, text idea, concept, or instructions")
+    content_format: Optional[str] = Field(default="auto", description="Format: auto, documentary, quiz_card, quote_card, trivia_quiz")
     target_duration_sec: float = Field(default=45.0, ge=30.0, le=60.0)
     slot_index: int = Field(default=1, ge=1, le=2)
-    auto_publish: bool = Field(default=True, description="Post directly to connected YouTube channel once generated")
+    auto_publish: bool = Field(default=False, description="Post directly to connected YouTube channel once generated")
+
+
+class UpdateVideoRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[list[str]] = None
 
 
 def _serialize_doc(doc: dict[str, Any]) -> dict[str, Any]:
@@ -58,21 +66,40 @@ def _serialize_doc(doc: dict[str, Any]) -> dict[str, Any]:
 
 def _dispatch_pipeline_job(
     job_id: str,
-    topic: Optional[str] = None,
-    slot_index: int = 1,
-    workspace_id: Optional[str] = None,
-    auto_publish: bool = False
+    topic: Optional[str],
+    slot_index: int,
+    workspace_id: Optional[str],
+    auto_publish: bool,
+    niche: Optional[str] = None,
+    prompt: Optional[str] = None,
+    content_format: Optional[str] = "auto",
+    target_duration_sec: Optional[float] = None
 ) -> None:
-    """Dispatch the real PipelineOrchestrator in a background thread."""
+    """Dispatch the real PipelineOrchestrator in a background thread with workspace niche awareness."""
     import asyncio
     from backend.app.celery_app.tasks import _build_orchestrator
     from backend.app.core.repositories import JobRepository, VideoRepository
     from backend.app.models.job import JobState
 
     db = SyncMongoDB.get_db()
+    workspace_niche = niche
+    if not workspace_niche and workspace_id:
+        try:
+            ws_obj = db.workspaces.find_one({"_id": ObjectId(workspace_id)}) if ObjectId.is_valid(workspace_id) else db.workspaces.find_one({"_id": workspace_id})
+            if ws_obj:
+                workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche")
+        except Exception:
+            pass
+    if not workspace_niche:
+        job_doc = db.publishing_jobs.find_one({"_id": job_id})
+        if job_doc:
+            workspace_niche = job_doc.get("niche")
+    if not workspace_niche:
+        workspace_niche = "Python Programming"
+
     db.publishing_jobs.update_one(
         {"_id": job_id},
-        {"$set": {"state": JobState.RENDERING.value, "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"state": JobState.RENDERING.value, "niche": workspace_niche, "updated_at": datetime.now(timezone.utc)}}
     )
 
     try:
@@ -82,9 +109,13 @@ def _dispatch_pipeline_job(
             orchestrator.video_repo = VideoRepository(db)
             return await orchestrator.execute_job(
                 job_id=job_id,
+                niche=workspace_niche,
                 custom_topic=topic,
                 publish_immediately=auto_publish,
-                slot_index=slot_index
+                slot_index=slot_index,
+                custom_prompt=prompt,
+                content_format=content_format,
+                target_duration_sec=target_duration_sec
             )
 
         res = asyncio.run(_run())
@@ -100,6 +131,7 @@ def _dispatch_pipeline_job(
             {"_id": job_id},
             {"$set": {"state": JobState.FAILED.value, "error_message": str(exc), "updated_at": datetime.now(timezone.utc)}}
         )
+
 
 
 
@@ -144,6 +176,7 @@ async def trigger_video_generation(
 
     # Resolve niche from workspace if set
     workspace_niche = "AI & Productivity"
+    ws_obj = None
     if workspace_id:
         try:
             ws_obj = db.workspaces.find_one({"_id": ObjectId(workspace_id)}) if ObjectId.is_valid(workspace_id) else db.workspaces.find_one({"_id": workspace_id})
@@ -152,7 +185,29 @@ async def trigger_video_generation(
         except Exception:
             pass
 
-    topic = request.topic or workspace_niche
+    # Extract user custom prompt, duration, format from settings if not passed explicitly in request
+    effective_prompt = request.prompt
+    if not effective_prompt and ws_obj:
+        effective_prompt = ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt")
+
+    effective_format = request.content_format or "auto"
+    if (not effective_format or effective_format == "auto") and ws_obj:
+        saved_fmt = ws_obj.get("preferred_format") or ws_obj.get("settings", {}).get("preferred_format")
+        if saved_fmt:
+            effective_format = saved_fmt
+
+    effective_duration = getattr(request, "target_duration_sec", None)
+    if (not effective_duration or effective_duration == 45.0) and ws_obj:
+        saved_dur = ws_obj.get("default_duration_sec") or ws_obj.get("settings", {}).get("default_duration_sec")
+        if saved_dur:
+            try:
+                effective_duration = float(saved_dur)
+            except Exception:
+                pass
+    if not effective_duration:
+        effective_duration = 45.0
+
+    topic = request.topic or (effective_prompt[:60] if effective_prompt else workspace_niche)
 
     # Check if this workspace has an active connected YouTube channel
     has_yt = False
@@ -203,11 +258,11 @@ async def trigger_video_generation(
 
     threading.Thread(
         target=_dispatch_pipeline_job,
-        args=(job_id, request.topic, request.slot_index, workspace_id, should_auto_publish),
+        args=(job_id, request.topic, request.slot_index, workspace_id, should_auto_publish, workspace_niche, effective_prompt, effective_format, effective_duration),
         daemon=True
     ).start()
 
-    pub_note = " and will auto-publish to your connected YouTube channel" if should_auto_publish else ""
+    pub_note = " and will auto-publish to your connected YouTube channel" if should_auto_publish else " (ready for preview and review)"
     queue_message = f"Video generation job created and queued{pub_note}."
 
     return {
@@ -218,6 +273,34 @@ async def trigger_video_generation(
         "idempotency_key": idempotency_key,
         "message": queue_message
     }
+
+
+@router.put("/{video_id}")
+async def update_video_details(
+    video_id: str,
+    payload: UpdateVideoRequest,
+    user: Optional[dict[str, Any]] = Depends(get_optional_current_user)
+) -> dict[str, Any]:
+    """Allow updating video metadata (title, description, tags) before or after publishing."""
+    db = SyncMongoDB.get_db()
+    query = {"_id": ObjectId(video_id)} if ObjectId.is_valid(video_id) else {"_id": video_id}
+    video_doc = db.videos.find_one(query)
+    if not video_doc:
+        video_doc = db.videos.find_one({"_id": video_id})
+    if not video_doc:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    update_fields: dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
+    if payload.title is not None:
+        update_fields["title"] = payload.title.strip()
+    if payload.description is not None:
+        update_fields["description"] = payload.description.strip()
+    if payload.tags is not None:
+        update_fields["tags"] = payload.tags
+
+    db.videos.update_one(query, {"$set": update_fields})
+    updated = db.videos.find_one(query)
+    return _serialize_doc(updated)
 
 
 @router.post("/{video_id}/publish")

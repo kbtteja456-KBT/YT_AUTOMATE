@@ -23,6 +23,18 @@ CARD_GRADIENTS = [
 ]
 
 
+def clean_stock_query(query: str, fallback: str = "technology") -> str:
+    """Clean visual prompt into concise, concrete search terms for stock video engines."""
+    import re
+    q = re.sub(r'#\w+', '', query)
+    q = re.sub(r'(?i)\b(?:high energy graphics showing|dynamic visual for|scene \d+|in \d+ seconds|shorts?|how to|how|why|what is|detailed view of|showing|depicting|illustration of|video of|clip of|graphic of)\b', ' ', q)
+    q = re.sub(r'[^a-zA-Z0-9\s]', ' ', q)
+    words = [w for w in q.split() if len(w) > 2 and w.lower() not in {"and", "the", "for", "with", "this", "that", "from", "are", "you", "all", "our"}]
+    if not words:
+        return fallback
+    return " ".join(words[:4])
+
+
 class StockMediaEngine(StockMediaProvider):
     """Acquires free licensed stock media from Pexels & Pixabay or generates procedural motion graphics."""
 
@@ -89,7 +101,12 @@ class StockMediaEngine(StockMediaProvider):
         img.save(output_path, "PNG")
         return output_path
 
-    async def _search_pexels_video(self, query: str, target_dir: Path) -> Optional[dict[str, Any]]:
+    async def _search_pexels_video(
+        self,
+        query: str,
+        target_dir: Path,
+        exclude_urls: Optional[set[str]] = None
+    ) -> Optional[dict[str, Any]]:
         """Search and download portrait MP4 video clip from Pexels Videos API."""
         api_key = settings.pexels_api_key.strip()
         if not api_key:
@@ -97,7 +114,7 @@ class StockMediaEngine(StockMediaProvider):
 
         headers = {"Authorization": api_key}
         url = "https://api.pexels.com/videos/search"
-        params = {"query": query, "orientation": "portrait", "per_page": 5}
+        params = {"query": query, "orientation": "portrait", "per_page": 8}
 
         try:
             async with httpx.AsyncClient(timeout=25.0) as client:
@@ -106,10 +123,15 @@ class StockMediaEngine(StockMediaProvider):
                     data = resp.json()
                     videos = data.get("videos", [])
                     for vid in videos:
+                        vid_page_url = vid.get("url", "")
+                        if exclude_urls and vid_page_url in exclude_urls:
+                            continue
+
                         video_files = vid.get("video_files", [])
                         candidates = [
                             vf for vf in video_files
                             if vf.get("link") and (vf.get("file_type") == "video/mp4" or ".mp4" in vf.get("link", ""))
+                            and (not exclude_urls or vf.get("link") not in exclude_urls)
                         ]
                         if not candidates:
                             continue
@@ -143,7 +165,7 @@ class StockMediaEngine(StockMediaProvider):
                             photographer = vid.get("user", {}).get("name", "Pexels Creator")
                             return {
                                 "local_path": str(local_file),
-                                "source_url": vid.get("url", video_url),
+                                "source_url": vid_page_url or video_url,
                                 "license": "Pexels Free to Use License",
                                 "attribution": f"Video by {photographer} on Pexels"
                             }
@@ -152,16 +174,20 @@ class StockMediaEngine(StockMediaProvider):
 
         return None
 
-    async def _search_pexels_media(self, query: str, target_dir: Path) -> Optional[dict[str, Any]]:
+    async def _search_pexels_media(
+        self,
+        query: str,
+        target_dir: Path,
+        exclude_urls: Optional[set[str]] = None
+    ) -> Optional[dict[str, Any]]:
         """Search and download portrait media from Pexels API."""
         api_key = settings.pexels_api_key.strip()
         if not api_key:
             return None
 
         headers = {"Authorization": api_key}
-        # Try Pexels Photos API (portrait orientation)
         url = "https://api.pexels.com/v1/search"
-        params = {"query": query, "orientation": "portrait", "per_page": 3}
+        params = {"query": query, "orientation": "portrait", "per_page": 5}
 
         try:
             async with httpx.AsyncClient(timeout=12.0) as client:
@@ -169,11 +195,14 @@ class StockMediaEngine(StockMediaProvider):
                 if resp.status_code == 200:
                     data = resp.json()
                     photos = data.get("photos", [])
-                    if photos:
-                        photo = photos[0]
+                    for photo in photos:
+                        photo_page = photo.get("url", "")
+                        if exclude_urls and photo_page in exclude_urls:
+                            continue
                         img_url = photo.get("src", {}).get("large2x") or photo.get("src", {}).get("large")
                         if img_url:
-                            # Download image
+                            if exclude_urls and img_url in exclude_urls:
+                                continue
                             file_hash = hashlib.sha256(img_url.encode("utf-8")).hexdigest()[:12]
                             local_file = target_dir / f"pexels_{file_hash}.jpg"
 
@@ -185,7 +214,7 @@ class StockMediaEngine(StockMediaProvider):
                             if local_file.exists() and local_file.stat().st_size > 5000:
                                 return {
                                     "local_path": str(local_file),
-                                    "source_url": photo.get("url", img_url),
+                                    "source_url": photo_page or img_url,
                                     "license": "Pexels Free to Use License",
                                     "attribution": f"Photo by {photo.get('photographer', 'Pexels Creator')} on Pexels"
                                 }
@@ -194,7 +223,12 @@ class StockMediaEngine(StockMediaProvider):
 
         return None
 
-    async def _search_pixabay_media(self, query: str, target_dir: Path) -> Optional[dict[str, Any]]:
+    async def _search_pixabay_media(
+        self,
+        query: str,
+        target_dir: Path,
+        exclude_urls: Optional[set[str]] = None
+    ) -> Optional[dict[str, Any]]:
         """Search and download vertical media from Pixabay API."""
         api_key = settings.pixabay_api_key.strip()
         if not api_key:
@@ -206,7 +240,7 @@ class StockMediaEngine(StockMediaProvider):
             "q": query,
             "image_type": "photo",
             "orientation": "vertical",
-            "per_page": 3
+            "per_page": 5
         }
 
         try:
@@ -215,10 +249,14 @@ class StockMediaEngine(StockMediaProvider):
                 if resp.status_code == 200:
                     data = resp.json()
                     hits = data.get("hits", [])
-                    if hits:
-                        hit = hits[0]
+                    for hit in hits:
+                        page_url = hit.get("pageURL", "")
+                        if exclude_urls and page_url in exclude_urls:
+                            continue
                         img_url = hit.get("largeImageURL") or hit.get("webformatURL")
                         if img_url:
+                            if exclude_urls and img_url in exclude_urls:
+                                continue
                             file_hash = hashlib.sha256(img_url.encode("utf-8")).hexdigest()[:12]
                             local_file = target_dir / f"pixabay_{file_hash}.jpg"
 
@@ -230,7 +268,7 @@ class StockMediaEngine(StockMediaProvider):
                             if local_file.exists() and local_file.stat().st_size > 5000:
                                 return {
                                     "local_path": str(local_file),
-                                    "source_url": hit.get("pageURL", img_url),
+                                    "source_url": page_url or img_url,
                                     "license": "Pixabay Content License (Free to use)",
                                     "attribution": f"Image by {hit.get('user', 'Pixabay Creator')} from Pixabay"
                                 }
@@ -244,55 +282,68 @@ class StockMediaEngine(StockMediaProvider):
         query: str,
         duration_sec: float,
         target_dir: str,
-        visual_type: str = "motion_graphic"
+        visual_type: str = "stock_footage",
+        exclude_urls: Optional[set[str]] = None
     ) -> Scene:
-        """Acquire visual asset for a storyboard scene: Pexels Video -> Pexels Photo -> Pixabay -> Procedural Card."""
+        """Acquire visual asset for a storyboard scene.
+        Supports both high-res photos (with Ken Burns motion) and real video clips,
+        intelligently selected according to the concept and visual_type requested.
+        """
         self.verify_zero_cost_compliance()
 
         target_path = Path(target_dir).resolve()
         target_path.mkdir(parents=True, exist_ok=True)
 
         content_hash = hashlib.sha256(query.encode("utf-8")).hexdigest()[:12]
+        clean_q = clean_stock_query(query)
 
-        # 1. First priority: Real Pexels Stock Video Clip (.mp4)
-        pexels_vid = await self._search_pexels_video(query, target_path)
-        if pexels_vid:
-            logger.info(f"Acquired real Pexels stock video clip for '{query[:30]}...' -> {pexels_vid['local_path']}")
-            return Scene(
-                scene_id=1,
-                start=0.0,
-                end=duration_sec,
-                narration="",
-                visual_type=VisualType.STOCK_FOOTAGE,
-                visual_prompt=query,
-                asset_local_path=pexels_vid["local_path"],
-                asset_url=pexels_vid["source_url"],
-                license_info=pexels_vid["license"],
-                attribution=pexels_vid["attribution"]
-            )
+        v_type_lower = str(visual_type).lower()
+        wants_photo = any(k in v_type_lower for k in ("photo", "image", "picture", "still", "card"))
 
-        # 2. Second priority: Pexels Photo (if stock footage or generated image requested)
-        if visual_type in ["stock_footage", "generated_image", "motion_graphic"]:
-            pexels_res = await self._search_pexels_media(query, target_path)
-            if pexels_res:
-                logger.info(f"Acquired Pexels stock media photo for '{query[:30]}...' -> {pexels_res['local_path']}")
+        # Strategy A: If photo is explicitly requested, search high-res Photos FIRST!
+        if wants_photo:
+            # 1. High-resolution portrait photo from Pexels
+            pexels_photo = await self._search_pexels_media(clean_q, target_path, exclude_urls=exclude_urls)
+            if not pexels_photo and clean_q != query:
+                pexels_photo = await self._search_pexels_media(query, target_path, exclude_urls=exclude_urls)
+            if pexels_photo:
+                logger.info(f"Acquired high-res photo for '{clean_q}' -> {pexels_photo['local_path']}")
                 return Scene(
                     scene_id=1,
                     start=0.0,
                     end=duration_sec,
                     narration="",
-                    visual_type=VisualType.STOCK_FOOTAGE,
+                    visual_type=VisualType.STOCK_PHOTO,
                     visual_prompt=query,
-                    asset_local_path=pexels_res["local_path"],
-                    asset_url=pexels_res["source_url"],
-                    license_info=pexels_res["license"],
-                    attribution=pexels_res["attribution"]
+                    asset_local_path=pexels_photo["local_path"],
+                    asset_url=pexels_photo["source_url"],
+                    license_info=pexels_photo["license"],
+                    attribution=pexels_photo["attribution"]
                 )
 
-            # 3. Third priority: Pixabay Photo
-            pixabay_res = await self._search_pixabay_media(query, target_path)
-            if pixabay_res:
-                logger.info(f"Acquired Pixabay stock media photo for '{query[:30]}...' -> {pixabay_res['local_path']}")
+            # 2. High-resolution portrait photo from Pixabay
+            pixabay_photo = await self._search_pixabay_media(clean_q, target_path, exclude_urls=exclude_urls)
+            if not pixabay_photo and clean_q != query:
+                pixabay_photo = await self._search_pixabay_media(query, target_path, exclude_urls=exclude_urls)
+            if pixabay_photo:
+                logger.info(f"Acquired Pixabay photo for '{clean_q}' -> {pixabay_photo['local_path']}")
+                return Scene(
+                    scene_id=1,
+                    start=0.0,
+                    end=duration_sec,
+                    narration="",
+                    visual_type=VisualType.STOCK_PHOTO,
+                    visual_prompt=query,
+                    asset_local_path=pixabay_photo["local_path"],
+                    asset_url=pixabay_photo["source_url"],
+                    license_info=pixabay_photo["license"],
+                    attribution=pixabay_photo["attribution"]
+                )
+
+            # 3. Fallback to video clip if no photo was found
+            pexels_vid = await self._search_pexels_video(clean_q, target_path, exclude_urls=exclude_urls)
+            if pexels_vid:
+                logger.info(f"Fallback acquired Pexels video clip for '{clean_q}' -> {pexels_vid['local_path']}")
                 return Scene(
                     scene_id=1,
                     start=0.0,
@@ -300,10 +351,69 @@ class StockMediaEngine(StockMediaProvider):
                     narration="",
                     visual_type=VisualType.STOCK_FOOTAGE,
                     visual_prompt=query,
-                    asset_local_path=pixabay_res["local_path"],
-                    asset_url=pixabay_res["source_url"],
-                    license_info=pixabay_res["license"],
-                    attribution=pixabay_res["attribution"]
+                    asset_local_path=pexels_vid["local_path"],
+                    asset_url=pexels_vid["source_url"],
+                    license_info=pexels_vid["license"],
+                    attribution=pexels_vid["attribution"]
+                )
+
+        # Strategy B: If video is requested (or default), search Pexels Videos FIRST, then photos!
+        else:
+            # 1. Real Pexels Stock Video Clip (.mp4)
+            pexels_vid = await self._search_pexels_video(clean_q, target_path, exclude_urls=exclude_urls)
+            if not pexels_vid and clean_q != query:
+                pexels_vid = await self._search_pexels_video(query, target_path, exclude_urls=exclude_urls)
+            if pexels_vid:
+                logger.info(f"Acquired real Pexels stock video clip for '{clean_q}' -> {pexels_vid['local_path']}")
+                return Scene(
+                    scene_id=1,
+                    start=0.0,
+                    end=duration_sec,
+                    narration="",
+                    visual_type=VisualType.STOCK_FOOTAGE,
+                    visual_prompt=query,
+                    asset_local_path=pexels_vid["local_path"],
+                    asset_url=pexels_vid["source_url"],
+                    license_info=pexels_vid["license"],
+                    attribution=pexels_vid["attribution"]
+                )
+
+            # 2. Pexels Photo (if stock footage not available)
+            pexels_photo = await self._search_pexels_media(clean_q, target_path, exclude_urls=exclude_urls)
+            if not pexels_photo and clean_q != query:
+                pexels_photo = await self._search_pexels_media(query, target_path, exclude_urls=exclude_urls)
+            if pexels_photo:
+                logger.info(f"Acquired Pexels photo for '{clean_q}' -> {pexels_photo['local_path']}")
+                return Scene(
+                    scene_id=1,
+                    start=0.0,
+                    end=duration_sec,
+                    narration="",
+                    visual_type=VisualType.STOCK_PHOTO,
+                    visual_prompt=query,
+                    asset_local_path=pexels_photo["local_path"],
+                    asset_url=pexels_photo["source_url"],
+                    license_info=pexels_photo["license"],
+                    attribution=pexels_photo["attribution"]
+                )
+
+            # 3. Pixabay Photo
+            pixabay_photo = await self._search_pixabay_media(clean_q, target_path, exclude_urls=exclude_urls)
+            if not pixabay_photo and clean_q != query:
+                pixabay_photo = await self._search_pixabay_media(query, target_path, exclude_urls=exclude_urls)
+            if pixabay_photo:
+                logger.info(f"Acquired Pixabay photo for '{clean_q}' -> {pixabay_photo['local_path']}")
+                return Scene(
+                    scene_id=1,
+                    start=0.0,
+                    end=duration_sec,
+                    narration="",
+                    visual_type=VisualType.STOCK_PHOTO,
+                    visual_prompt=query,
+                    asset_local_path=pixabay_photo["local_path"],
+                    asset_url=pixabay_photo["source_url"],
+                    license_info=pixabay_photo["license"],
+                    attribution=pixabay_photo["attribution"]
                 )
 
         # 4. Fallback: Procedural high-retention 1080x1920 graphic card
@@ -313,7 +423,6 @@ class StockMediaEngine(StockMediaProvider):
             output_path=output_file,
             scene_id=int(content_hash[:2], 16) % 10 + 1
         )
-
         return Scene(
             scene_id=1,
             start=0.0,

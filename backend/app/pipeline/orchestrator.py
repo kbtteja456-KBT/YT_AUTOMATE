@@ -97,7 +97,8 @@ class PipelineOrchestrator:
         style_profile: Optional[StyleProfile],
         publish_immediately: bool,
         slot_index: Optional[int],
-        dry_run: bool
+        dry_run: bool,
+        target_duration_sec: Optional[float] = None
     ) -> dict[str, Any]:
         """Execute stages 2 through 13 for a given topic."""
         # 2. RESEARCH STAGE
@@ -115,7 +116,7 @@ class PipelineOrchestrator:
             topic=topic,
             hook=winning_hook,
             research=research_verified,
-            target_duration_sec=45.0
+            target_duration_sec=target_duration_sec or 45.0
         )
 
         # 4. STORYBOARD STAGE
@@ -130,7 +131,7 @@ class PipelineOrchestrator:
         # 5. VISUAL ASSET COLLECTION
         current_stage = "GENERATING_MEDIA"
         await self._transition_state(job_id, JobState.GENERATING_MEDIA)
-        storyboard_with_assets = await self.media.collect_scene_assets(storyboard, job_id=job_id)
+        storyboard_with_assets = await self.media.collect_scene_assets(storyboard, job_id=job_id, script=script_obj)
 
         # 6. VOICE GENERATION
         current_stage = "GENERATING_VOICE"
@@ -397,10 +398,13 @@ class PipelineOrchestrator:
         style_profile: Optional[StyleProfile] = None,
         publish_immediately: bool = False,
         slot_index: Optional[int] = None,
-        dry_run: bool = False
+        dry_run: bool = False,
+        custom_prompt: Optional[str] = None,
+        content_format: Optional[str] = "auto",
+        target_duration_sec: Optional[float] = None
     ) -> dict[str, Any]:
         """Execute all stages sequentially with automatic resumption and duplicate retry protection."""
-        logger.info(f"[Orchestrator] Beginning execution for Job {job_id} (slot: {slot_index}, dry_run: {dry_run})...")
+        logger.info(f"[Orchestrator] Beginning execution for Job {job_id} (slot: {slot_index}, prompt: '{custom_prompt}', duration: {target_duration_sec}s, dry_run: {dry_run})...")
 
         max_duplicate_retries = 3
         past_topics: list[str] = []
@@ -431,14 +435,16 @@ class PipelineOrchestrator:
 
                 await self._transition_state(job_id, JobState.RESEARCHING)
 
-                if topic_override:
+                if topic_override and not custom_prompt:
                     topic = topic_override
                 else:
                     idea_res = await self.idea.generate_daily_topic(
                         niche=niche,
                         target_audience=target_audience,
                         past_topics=past_topics,
-                        slot_index=slot_index or 1
+                        slot_index=slot_index or 1,
+                        custom_prompt=custom_prompt or topic_override,
+                        content_format=content_format
                     )
                     topic = idea_res["topic"]
 
@@ -450,7 +456,8 @@ class PipelineOrchestrator:
                     style_profile=style_profile,
                     publish_immediately=publish_immediately,
                     slot_index=slot_index,
-                    dry_run=dry_run
+                    dry_run=dry_run,
+                    target_duration_sec=target_duration_sec
                 )
 
             except DuplicateUploadPreventedError as dup_err:

@@ -374,15 +374,56 @@ export const api = {
     return res.json();
   },
 
-  async triggerGenerate(topic?: string, duration: number = 45): Promise<{ job_id: string; message: string }> {
+  async triggerGenerate(
+    params?: string | {
+      topic?: string;
+      prompt?: string;
+      content_format?: string;
+      duration?: number;
+      auto_publish?: boolean;
+    },
+    duration: number = 45
+  ): Promise<{ job_id: string; message: string }> {
+    let payload: any = { slot_index: 1 };
+    if (typeof params === 'string') {
+      payload.topic = params;
+      payload.target_duration_sec = duration;
+      payload.auto_publish = false;
+    } else if (params && typeof params === 'object') {
+      payload.topic = params.topic;
+      payload.prompt = params.prompt;
+      payload.content_format = params.content_format || 'auto';
+      payload.target_duration_sec = params.duration || 45;
+      payload.auto_publish = params.auto_publish || false;
+    } else {
+      payload.target_duration_sec = duration;
+      payload.auto_publish = false;
+    }
+
     const res = await authFetch(`${API_BASE}/videos/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, target_duration_sec: duration, slot_index: 1 })
+      body: JSON.stringify(payload)
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Failed to queue video generation' }));
       throw new Error(err.detail || 'Failed to queue video generation');
+    }
+    return res.json();
+  },
+
+  async updateVideo(
+    videoId: string,
+    data: { title?: string; description?: string; tags?: string[] }
+  ): Promise<VideoItem> {
+    const res = await authFetch(`${API_BASE}/videos/${videoId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update video metadata' }));
+      throw new Error(err.detail || 'Failed to update video metadata');
     }
     return res.json();
   },

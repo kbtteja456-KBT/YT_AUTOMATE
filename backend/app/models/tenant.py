@@ -37,6 +37,9 @@ class Workspace(MongoBaseModel):
     content_template: str = Field(default="quiz_card")
     visual_style: str = Field(default="hand_drawn_sketch")
     voice_id: str = Field(default="en-US-ChristopherNeural")
+    custom_content_prompt: Optional[str] = Field(default="")
+    default_duration_sec: int = Field(default=45)
+    preferred_format: str = Field(default="auto")
     schedule: WorkspaceSchedule = Field(default_factory=WorkspaceSchedule)
     trial_quota: TrialQuota = Field(default_factory=TrialQuota)
     connected_channel_id: Optional[str] = None

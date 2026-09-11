@@ -10,10 +10,45 @@ interface VideosPageProps {
 
 export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick, onVideoDeleted }) => {
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
+  const [editTitle, setEditTitle] = useState<string>('');
+  const [editDescription, setEditDescription] = useState<string>('');
+  const [isEditingMetadata, setIsEditingMetadata] = useState<boolean>(false);
+  const [isSavingMeta, setIsSavingMeta] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [confirmDeleteVideo, setConfirmDeleteVideo] = useState<VideoItem | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+
+  const handleOpenVideo = (video: VideoItem) => {
+    setSelectedVideo(video);
+    setEditTitle(video.title);
+    setEditDescription(video.description);
+    setIsEditingMetadata(false);
+  };
+
+  const handleSaveMetadata = async () => {
+    if (!selectedVideo) return;
+    setIsSavingMeta(true);
+    try {
+      const updated = await api.updateVideo(selectedVideo.id, {
+        title: editTitle,
+        description: editDescription
+      });
+      setSelectedVideo({
+        ...selectedVideo,
+        title: updated.title,
+        description: updated.description
+      });
+      setIsEditingMetadata(false);
+      setFeedbackMessage('✅ Video title & description updated successfully!');
+      setTimeout(() => setFeedbackMessage(null), 3500);
+    } catch (err: any) {
+      alert(`Failed to update metadata: ${err.message}`);
+    } finally {
+      setIsSavingMeta(false);
+    }
+  };
+
 
   const handlePublishVideo = async (video: VideoItem) => {
     setPublishingId(video.id);
@@ -132,9 +167,9 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick,
             <div
               key={video.id}
               className="video-card"
-              onClick={() => setSelectedVideo(video)}
+              onClick={() => handleOpenVideo(video)}
               style={{ cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
-              title="Click to play video"
+              title="Click to review and play video"
             >
               <div className="video-thumbnail-wrapper" style={{ position: 'relative' }}>
                 <img
@@ -333,9 +368,26 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick,
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f3f4f6' }}>
-                {selectedVideo.title}
-              </h3>
+              <div>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    marginBottom: '6px',
+                    background: selectedVideo.youtube_url ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.2)',
+                    color: selectedVideo.youtube_url ? '#34d399' : '#fbbf24',
+                    border: `1px solid ${selectedVideo.youtube_url ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.4)'}`
+                  }}
+                >
+                  {selectedVideo.youtube_url ? '🟢 LIVE ON YOUTUBE' : '🟡 READY FOR REVIEW & EDIT'}
+                </span>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f3f4f6', margin: 0 }}>
+                  {selectedVideo.title}
+                </h3>
+              </div>
               <button
                 onClick={() => setSelectedVideo(null)}
                 style={{
@@ -380,9 +432,110 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick,
               )}
             </div>
 
-            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
-              {selectedVideo.description}
-            </p>
+            {/* Review & Edit Studio Section */}
+            <div
+              style={{
+                background: 'rgba(15, 23, 42, 0.7)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  📝 Video Metadata & Details
+                </span>
+                {!selectedVideo.youtube_url && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMetadata(!isEditingMetadata)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#60a5fa',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {isEditingMetadata ? 'Cancel Editing' : '✏️ Edit Title & Description'}
+                  </button>
+                )}
+              </div>
+
+              {isEditingMetadata ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Title</label>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      maxLength={100}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '8px 10px',
+                        background: '#1e293b',
+                        border: '1px solid #3b82f6',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Description</label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '8px 10px',
+                        background: '#1e293b',
+                        border: '1px solid #3b82f6',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                        lineHeight: 1.4,
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveMetadata}
+                      disabled={isSavingMeta}
+                      style={{
+                        padding: '6px 14px',
+                        background: '#2563eb',
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: isSavingMeta ? 'wait' : 'pointer'
+                      }}
+                    >
+                      {isSavingMeta ? 'Saving...' : '💾 Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>{selectedVideo.title}</div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.4, margin: 0, maxHeight: '80px', overflowY: 'auto' }}>
+                    {selectedVideo.description}
+                  </p>
+                </>
+              )}
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -428,12 +581,15 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onGenerateClick,
                     disabled={publishingId === selectedVideo.id}
                     onClick={() => handlePublishVideo(selectedVideo)}
                     style={{
-                      padding: '6px 14px',
+                      padding: '8px 16px',
                       fontSize: '13px',
+                      fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
+                      gap: '8px',
                       borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
                       cursor: publishingId === selectedVideo.id ? 'not-allowed' : 'pointer'
                     }}
                     title="Upload and publish directly to your connected YouTube channel"
