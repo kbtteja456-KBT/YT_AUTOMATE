@@ -19,7 +19,7 @@ class QCAgent(BaseAgent):
     async def audit_video(
         self,
         video_path: str,
-        min_duration: float = 20.0,
+        min_duration: float = 15.0,
         max_duration: float = 65.0,
         content_format: Optional[str] = None
     ) -> QCReport:

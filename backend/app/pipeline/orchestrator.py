@@ -170,7 +170,7 @@ class PipelineOrchestrator:
         await self._transition_state(job_id, JobState.QUALITY_CHECK)
         qc_report = await self.qc.audit_video(
             video_path=rendered_video_path,
-            min_duration=20.0,  # Scaled for test pipelines
+            min_duration=15.0,  # YouTube Shorts valid duration range is 15-60s
             max_duration=65.0
         )
 
@@ -306,78 +306,110 @@ class PipelineOrchestrator:
             except Exception as dbe:
                 logger.warning(f"[Orchestrator] Could not load existing hashes for duplicate protection: {dbe}")
 
-            upload_result = await self.youtube.publish_short(
-                video_filepath=rendered_video_path,
-                title=video_title,
-                description=description_text,
-                tags=video_tags,
-                thumbnail=thumbnail_card,
-                privacy_status="public",
-                existing_hashes=existing_hashes
-            )
-
-            youtube_video_id = upload_result.get("youtube_video_id")
-            youtube_url = upload_result.get("youtube_url")
-            published_time = datetime.now(timezone.utc)
-
-            await self._transition_state(job_id, JobState.PUBLISHED)
-            logger.info(
-                f"\n============================================================\n"
-                f"[STAGE: PUBLISHED] Successfully Published to YouTube!\n"
-                f"Video URL: {youtube_url}\n"
-                f"YouTube Video ID: {youtube_video_id}\n"
-                f"============================================================"
-            )
-
-            video_record.youtube_video_id = youtube_video_id
-            video_record.youtube_url = youtube_url
-            video_record.youtube_published_at = published_time
-            video_record.status = "PUBLISHED"
-
-            # Persist upload metadata to db.videos and db.publishing_jobs
             try:
-                from backend.app.core.db import SyncMongoDB
-                db = SyncMongoDB.get_db()
-                from bson import ObjectId
-                query_job = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
-                db.publishing_jobs.update_one(
-                    query_job,
-                    {
-                        "$set": {
-                            "state": JobState.PUBLISHED.value,
-                            "youtube_video_id": youtube_video_id,
-                            "youtube_url": youtube_url,
-                            "published_at": published_time,
-                            "updated_at": published_time,
-                        }
-                    }
+                upload_result = await self.youtube.publish_short(
+                    video_filepath=rendered_video_path,
+                    title=video_title,
+                    description=description_text,
+                    tags=video_tags,
+                    thumbnail=thumbnail_card,
+                    privacy_status="public",
+                    existing_hashes=existing_hashes
                 )
-                db.videos.update_one(
-                    {"job_id": str(job_id)},
-                    {
-                        "$set": {
-                            "status": "PUBLISHED",
-                            "youtube_video_id": youtube_video_id,
-                            "youtube_url": youtube_url,
-                            "youtube_published_at": published_time,
-                        }
-                    }
-                )
-            except Exception as upd_e:
-                logger.warning(f"[Orchestrator] Could not update job/video docs with YouTube info: {upd_e}")
 
-            return {
-                "status": "PUBLISHED",
-                "job_id": job_id,
-                "topic": topic,
-                "title": video_title,
-                "video_path": rendered_video_path,
-                "thumbnail_path": thumbnail_card.file_path,
-                "quality_score": qc_report.score,
-                "youtube_video_id": youtube_video_id,
-                "youtube_url": youtube_url,
-                "file_hash": video_record.file_hash,
-            }
+                youtube_video_id = upload_result.get("youtube_video_id")
+                youtube_url = upload_result.get("youtube_url")
+                published_time = datetime.now(timezone.utc)
+
+                await self._transition_state(job_id, JobState.PUBLISHED)
+                logger.info(
+                    f"\n============================================================\n"
+                    f"[STAGE: PUBLISHED] Successfully Published to YouTube!\n"
+                    f"Video URL: {youtube_url}\n"
+                    f"YouTube Video ID: {youtube_video_id}\n"
+                    f"============================================================"
+                )
+
+                video_record.youtube_video_id = youtube_video_id
+                video_record.youtube_url = youtube_url
+                video_record.youtube_published_at = published_time
+                video_record.status = "PUBLISHED"
+
+                # Persist upload metadata to db.videos and db.publishing_jobs
+                try:
+                    from backend.app.core.db import SyncMongoDB
+                    db = SyncMongoDB.get_db()
+                    from bson import ObjectId
+                    query_job = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+                    db.publishing_jobs.update_one(
+                        query_job,
+                        {
+                            "$set": {
+                                "state": JobState.PUBLISHED.value,
+                                "youtube_video_id": youtube_video_id,
+                                "youtube_url": youtube_url,
+                                "published_at": published_time,
+                                "updated_at": published_time,
+                            }
+                        }
+                    )
+                    db.videos.update_one(
+                        {"job_id": str(job_id)},
+                        {
+                            "$set": {
+                                "status": "PUBLISHED",
+                                "youtube_video_id": youtube_video_id,
+                                "youtube_url": youtube_url,
+                                "youtube_published_at": published_time,
+                            }
+                        }
+                    )
+                except Exception as upd_e:
+                    logger.warning(f"[Orchestrator] Could not update job/video docs with YouTube info: {upd_e}")
+
+                return {
+                    "status": "PUBLISHED",
+                    "job_id": job_id,
+                    "topic": topic,
+                    "title": video_title,
+                    "video_path": rendered_video_path,
+                    "thumbnail_path": thumbnail_card.file_path,
+                    "quality_score": qc_report.score,
+                    "youtube_video_id": youtube_video_id,
+                    "youtube_url": youtube_url,
+                    "file_hash": video_record.file_hash,
+                }
+            except DuplicateUploadPreventedError:
+                raise
+            except Exception as up_err:
+                logger.warning(f"[Orchestrator] YouTube upload failed: {up_err}. Preserving rendered video in READY state.")
+                now_utc = datetime.now(timezone.utc)
+                try:
+                    from backend.app.core.db import SyncMongoDB
+                    from bson import ObjectId
+                    db = SyncMongoDB.get_db()
+                    qj = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+                    db.publishing_jobs.update_one(
+                        qj,
+                        {"$set": {"state": JobState.READY.value, "error_message": str(up_err), "updated_at": now_utc}}
+                    )
+                    db.videos.update_one(
+                        {"job_id": str(job_id)},
+                        {"$set": {"status": "READY", "error_message": str(up_err), "updated_at": now_utc}}
+                    )
+                except Exception as dbe:
+                    logger.warning(f"[Orchestrator] Could not mark video as READY in DB: {dbe}")
+
+                return {
+                    "status": "READY",
+                    "job_id": job_id,
+                    "topic": topic,
+                    "title": video_title,
+                    "video_path": rendered_video_path,
+                    "thumbnail_path": thumbnail_card.file_path,
+                    "quality_score": qc_report.score,
+                    "upload_error": str(up_err),
+                }
 
         return {
             "status": "READY",
@@ -486,4 +518,15 @@ class PipelineOrchestrator:
                     exc_info=True
                 )
                 await self._transition_state(job_id, JobState.FAILED, error=f"{exc}")
+                try:
+                    from backend.app.core.db import SyncMongoDB
+                    from bson import ObjectId
+                    from backend.app.core.ledger import refund_trial_quota_atomic_sync
+                    db = SyncMongoDB.get_db()
+                    qj = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+                    j_doc = db.publishing_jobs.find_one(qj)
+                    if j_doc and j_doc.get("workspace_id"):
+                        refund_trial_quota_atomic_sync(str(j_doc["workspace_id"]))
+                except Exception:
+                    pass
                 raise
