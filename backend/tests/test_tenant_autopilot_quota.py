@@ -104,3 +104,44 @@ def test_slot_status_scoped_to_workspace():
 
     status = get_slot_status_today(1, "2026-09-08", workspace_id=test_ws_id)
     assert status == "PENDING"
+
+
+def test_increment_trial_quota_on_publish_sync():
+    from backend.app.core.ledger import increment_trial_quota_on_publish_sync
+    db = SyncMongoDB.get_db()
+    test_ws_id = str(ObjectId())
+
+    db.workspaces.insert_one({
+        "_id": ObjectId(test_ws_id),
+        "name": "Publish Quota Test Channel",
+        "is_legacy_default": False,
+        "autopilot_enabled": True,
+        "trial_quota": {
+            "max_videos": 3,
+            "videos_generated": 0,
+            "is_exhausted": False
+        }
+    })
+
+    try:
+        # 1. Video 1 published
+        assert increment_trial_quota_on_publish_sync(test_ws_id) is True
+        ws = db.workspaces.find_one({"_id": ObjectId(test_ws_id)})
+        assert ws["trial_quota"]["videos_generated"] == 1
+        assert ws["trial_quota"]["is_exhausted"] is False
+
+        # 2. Video 2 published
+        assert increment_trial_quota_on_publish_sync(test_ws_id) is True
+        ws = db.workspaces.find_one({"_id": ObjectId(test_ws_id)})
+        assert ws["trial_quota"]["videos_generated"] == 2
+        assert ws["trial_quota"]["is_exhausted"] is False
+
+        # 3. Video 3 published -> Hits cap
+        assert increment_trial_quota_on_publish_sync(test_ws_id) is True
+        ws = db.workspaces.find_one({"_id": ObjectId(test_ws_id)})
+        assert ws["trial_quota"]["videos_generated"] == 3
+        assert ws["trial_quota"]["is_exhausted"] is True
+        assert ws["autopilot_enabled"] is False
+    finally:
+        db.workspaces.delete_one({"_id": ObjectId(test_ws_id)})
+

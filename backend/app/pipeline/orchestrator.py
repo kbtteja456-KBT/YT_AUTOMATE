@@ -364,6 +364,13 @@ class PipelineOrchestrator:
                             }
                         }
                     )
+
+                    # Increment trial quota count strictly AFTER successful YouTube publication
+                    job_doc = db.publishing_jobs.find_one(query_job)
+                    target_ws = job_doc.get("workspace_id") if job_doc else None
+                    if target_ws:
+                        from backend.app.core.ledger import increment_trial_quota_on_publish_sync
+                        increment_trial_quota_on_publish_sync(str(target_ws))
                 except Exception as upd_e:
                     logger.warning(f"[Orchestrator] Could not update job/video docs with YouTube info: {upd_e}")
 

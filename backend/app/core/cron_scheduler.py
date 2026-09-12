@@ -212,11 +212,11 @@ async def execute_slot_pipeline(
             )
             return {"status": "ALREADY_RUNNING", "job_id": str(existing["_id"])}
 
-        # Verified not running and not published - acquire quota if tenant
+        # Verified not running and not published - verify quota eligibility if tenant
         if workspace_id:
-            allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+            allowed, reason = can_workspace_generate_sync(workspace_id)
             if not allowed:
-                logger.warning(f"[Autopilot] Workspace {workspace_id} cannot acquire quota: {reason}")
+                logger.warning(f"[Autopilot] Workspace {workspace_id} cannot generate: {reason}")
                 return {"status": "QUOTA_EXHAUSTED", "reason": reason, "workspace_id": workspace_id}
 
         job_id = str(existing["_id"])
@@ -225,11 +225,11 @@ async def execute_slot_pipeline(
             {"$set": {"state": JobState.RUNNING.value, "error_message": None, "updated_at": now}}
         )
     else:
-        # Verified new run - acquire quota if tenant
+        # Verified new run - verify quota eligibility if tenant
         if workspace_id:
-            allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+            allowed, reason = can_workspace_generate_sync(workspace_id)
             if not allowed:
-                logger.warning(f"[Autopilot] Workspace {workspace_id} cannot acquire quota: {reason}")
+                logger.warning(f"[Autopilot] Workspace {workspace_id} cannot generate: {reason}")
                 return {"status": "QUOTA_EXHAUSTED", "reason": reason, "workspace_id": workspace_id}
 
         doc = {
@@ -297,6 +297,9 @@ async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str) ->
         from backend.app.core.ledger import can_workspace_generate_sync
         db = SyncMongoDB.get_db()
 
+        # Clean up any stale interrupted jobs before starting the tenant loop
+        reconcile_stuck_in_progress_jobs()
+
         cursor = db.workspaces.find({
             "is_legacy_default": {"$ne": True},
             "autopilot_enabled": True
@@ -317,7 +320,8 @@ async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str) ->
                     continue
 
                 tok = db.oauth_tokens.find_one({"workspace_id": ws_id}) or db.oauth_tokens.find_one({"channel_id": chan["channel_id"]})
-                if not tok:
+                if not tok or not (tok.get("encrypted_refresh_token") or tok.get("refresh_token")):
+                    logger.info(f"[Tenant Autopilot] Workspace '{ws_name}' has no active OAuth credentials. Skipping.")
                     continue
 
                 # 2. Already published today check
@@ -370,6 +374,7 @@ def reconcile_stuck_in_progress_jobs():
             "state": {"$in": active_states},
             "$or": [
                 {"updated_at": {"$lt": stale_threshold}},
+                {"created_at": {"$lt": stale_threshold}},
                 {"updated_at": {"$exists": False}},
             ]
         }))
@@ -386,12 +391,17 @@ def reconcile_stuck_in_progress_jobs():
             else:
                 db.publishing_jobs.update_one(
                     {"_id": job["_id"]},
-                    {"$set": {
-                        "state": JobState.FAILED.value,
-                        "error_message": "Recovered by autonomous reconciliation after system interruption.",
-                        "updated_at": now_utc
-                    }}
+                    {
+                        "$set": {
+                            "state": JobState.FAILED.value,
+                            "error_message": "Recovered by autonomous reconciliation after system interruption.",
+                            "updated_at": now_utc
+                        }
+                    }
                 )
+                if job.get("workspace_id"):
+                    from backend.app.core.ledger import refund_trial_quota_atomic_sync
+                    refund_trial_quota_atomic_sync(str(job["workspace_id"]))
                 logger.info(f"🔄 [Self-Healing] Stale job {job_id} cleared so slot pipeline can run freshly.")
     except Exception as e:
         logger.warning(f"[Self-Healing] Reconciliation notice: {e}")

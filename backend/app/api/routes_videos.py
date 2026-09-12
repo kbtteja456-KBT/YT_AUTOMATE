@@ -219,10 +219,10 @@ async def trigger_video_generation(
 
     should_auto_publish = request.auto_publish and has_yt
 
-    # Enforce 3-video trial quota for non-owner tenants
+    # Enforce 3-video trial quota for non-owner tenants (quota is only consumed after YouTube upload)
     if workspace_id:
-        from backend.app.core.ledger import check_and_acquire_trial_quota_atomic_sync
-        allowed, reason = check_and_acquire_trial_quota_atomic_sync(workspace_id, is_video_generation=True)
+        from backend.app.core.ledger import can_workspace_generate_sync
+        allowed, reason = can_workspace_generate_sync(workspace_id)
         if not allowed:
             raise HTTPException(status_code=403, detail=reason)
 

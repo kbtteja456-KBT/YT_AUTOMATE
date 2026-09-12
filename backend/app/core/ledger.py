@@ -277,3 +277,58 @@ def refund_trial_quota_atomic_sync(workspace_id: str) -> bool:
         return False
 
 
+def increment_trial_quota_on_publish_sync(workspace_id: str) -> bool:
+    """Increment trial quota count strictly AFTER a video is successfully published to YouTube."""
+    if not workspace_id:
+        return True
+    try:
+        db = SyncMongoDB.get_db()
+        ws = db.workspaces.find_one({"_id": ObjectId(workspace_id)}) if ObjectId.is_valid(workspace_id) else db.workspaces.find_one({"_id": workspace_id})
+        if not ws or ws.get("is_legacy_default", False):
+            return True
+
+        ws_id_str = str(ws["_id"])
+        # If tenant configured their own valid BYOK key, platform trial quota is never consumed
+        custom_ai_key = db.workspace_api_keys.find_one({
+            "workspace_id": ws_id_str,
+            "provider": "openrouter",
+            "is_valid": True
+        })
+        if custom_ai_key:
+            return True
+
+        # Atomically increment videos_generated
+        updated = db.workspaces.find_one_and_update(
+            {"_id": ws["_id"]},
+            {
+                "$inc": {"trial_quota.videos_generated": 1},
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            },
+            return_document=ReturnDocument.AFTER
+        )
+
+        if updated:
+            tq = updated.get("trial_quota", {})
+            v_gen = tq.get("videos_generated", 0)
+            v_max = tq.get("max_videos", 3)
+            if v_gen >= v_max:
+                db.workspaces.update_one(
+                    {"_id": ws["_id"]},
+                    {
+                        "$set": {
+                            "trial_quota.is_exhausted": True,
+                            "autopilot_enabled": False,
+                            "updated_at": datetime.now(timezone.utc)
+                        }
+                    }
+                )
+                logger.info(f"🔒 [Trial Quota] Workspace {workspace_id} reached trial cap ({v_gen}/{v_max}). Autopilot paused.")
+            else:
+                logger.info(f"📈 [Trial Quota] Workspace {workspace_id} successfully published video ({v_gen}/{v_max}).")
+        return True
+    except Exception as e:
+        logger.error(f"Error incrementing trial quota on publish for workspace {workspace_id}: {e}")
+        return False
+
+
+
