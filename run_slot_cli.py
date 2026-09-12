@@ -237,7 +237,19 @@ async def run_real_pipeline(
             workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Tech & Tools"
         idempotency_key = compute_content_hash(f"autopilot_{date_str}_{workspace_id}_slot{slot_index}")
     else:
+        ws_obj = db.workspaces.find_one({"is_legacy_default": True}) or db.workspaces.find_one()
+        if ws_obj:
+            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Quiz #Shorts"
         idempotency_key = compute_content_hash(f"autopilot_{date_str}_slot{slot_index}")
+
+    custom_prompt = (ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt")) if ws_obj else None
+    content_format = (
+        ws_obj.get("content_template")
+        or ws_obj.get("preferred_format")
+        or ws_obj.get("settings", {}).get("content_template")
+        or ws_obj.get("settings", {}).get("preferred_format")
+        or "auto"
+    ) if ws_obj else "auto"
 
     # 1. Check if already published today
     if not force and is_slot_published_today(slot_index, date_str, workspace_id=workspace_id):
@@ -346,6 +358,8 @@ async def run_real_pipeline(
         job_id=job_id,
         niche=workspace_niche,
         custom_topic=custom_topic,
+        custom_prompt=custom_prompt,
+        content_format=content_format,
         publish_immediately=not dry_run,
         slot_index=slot_index,
         dry_run=dry_run

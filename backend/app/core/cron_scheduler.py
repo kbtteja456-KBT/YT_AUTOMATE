@@ -168,9 +168,14 @@ async def execute_slot_pipeline(
         if ws_obj:
             workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Quiz #Shorts"
         idemp_prefix = f"autopilot_{date_str}_slot{slot_index}"
-
     custom_prompt = ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt") if ws_obj else None
-    pref_format = (ws_obj.get("preferred_format") or ws_obj.get("settings", {}).get("preferred_format") or "auto") if ws_obj else "auto"
+    pref_format = (
+        ws_obj.get("content_template")
+        or ws_obj.get("preferred_format")
+        or ws_obj.get("settings", {}).get("content_template")
+        or ws_obj.get("settings", {}).get("preferred_format")
+        or "auto"
+    ) if ws_obj else "auto"
 
     idempotency_key = compute_content_hash(idemp_prefix)
     existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})

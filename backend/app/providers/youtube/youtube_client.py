@@ -7,6 +7,7 @@ from typing import Any, Optional
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
+from google.auth.exceptions import RefreshError
 
 from backend.app.config import settings
 from backend.app.core.logging import logger
@@ -62,7 +63,12 @@ class YouTubeClientProvider(YouTubeProvider):
                 "custom_url": snippet.get("customUrl"),
                 "thumbnail_url": snippet.get("thumbnails", {}).get("default", {}).get("url")
             }
+        except RefreshError as re:
+            logger.error(f"YouTube OAuth token expired or revoked: {re}")
+            raise YouTubeAPIError("YouTube account token expired or revoked. Please reconnect your YouTube channel in Settings.")
         except HttpError as e:
+            if "invalid_grant" in str(e):
+                raise YouTubeAPIError("YouTube account token expired or revoked. Please reconnect your YouTube channel in Settings.")
             logger.error(f"YouTube Data API error: {e}")
             raise YouTubeAPIError(f"YouTube Data API error: {e}")
 
@@ -73,6 +79,8 @@ class YouTubeClientProvider(YouTubeProvider):
             return ""
         # YouTube strictly forbids '<' and '>' in title and description
         cleaned = text.replace("<", "[").replace(">", "]")
+        # Strip backticks and code block markers that can confuse metadata parsers
+        cleaned = cleaned.replace("```", "").replace("`", "")
         # Remove any illegal control characters except standard whitespace
         cleaned = "".join(ch for ch in cleaned if ch in ("\n", "\r", "\t") or ord(ch) >= 32)
         return cleaned[:max_length].strip()
@@ -156,17 +164,29 @@ class YouTubeClientProvider(YouTubeProvider):
                 "uploaded_at": time.time()
             }
 
+        except RefreshError as re:
+            logger.error(f"YouTube OAuth token expired or revoked during upload: {re}")
+            raise YouTubeAPIError("YouTube account token expired or revoked. Please reconnect your YouTube channel in Settings.")
+
         except HttpError as e:
             err_content = str(e)
+            resp_obj = getattr(e, "resp", None)
+            status_code = getattr(resp_obj, "status", None)
+            if status_code is None and isinstance(resp_obj, dict):
+                status_code = resp_obj.get("status")
+
+            is_400 = "invalidDescription" in err_content or "invalidTitle" in err_content or status_code in (400, "400") or " 400 " in err_content
+
             # Automatic Self-Healing: If metadata rejected (e.g. invalid description/title), retry once with clean minimal text
-            if ("invalidDescription" in err_content or "invalidTitle" in err_content or getattr(e, "resp", {}).get("status") == 400) and not _is_retry:
+            if is_400 and not _is_retry:
                 logger.warning(f"⚠️ [Self-Healing YouTube Upload] Metadata rejected by YouTube: {e}. Auto-cleaning metadata and retrying upload...")
-                # Strip all code fences, include statements, and complex markdown
                 stripped_lines = [
-                    line for line in description.splitlines() 
-                    if not line.strip().startswith("```") and "#include" not in line and "<" not in line and ">" not in line
+                    line.replace("<", "[").replace(">", "]").replace("`", "").strip()
+                    for line in description.splitlines() 
+                    if not line.strip().startswith("```") and "#include" not in line
                 ]
-                fallback_desc = self.sanitize_youtube_text("\n".join(stripped_lines), max_length=2000)
+                stripped_lines = [l for l in stripped_lines if l]
+                fallback_desc = self.sanitize_youtube_text("\n".join(stripped_lines[:8]), max_length=1500)
                 if not fallback_desc.strip():
                     fallback_desc = f"{safe_title}\n\n#Shorts #Tech #AI #Programming"
                 
@@ -179,8 +199,17 @@ class YouTubeClientProvider(YouTubeProvider):
                     _is_retry=True
                 )
 
+            if "invalid_grant" in err_content:
+                raise YouTubeAPIError("YouTube account token expired or revoked. Please reconnect your YouTube channel in Settings.")
+
             logger.error(f"YouTube upload failed: {e}")
             raise YouTubeAPIError(f"Upload failed: {e}")
+
+        except Exception as gen_err:
+            err_str = str(gen_err)
+            if "invalid_grant" in err_str or "expired or revoked" in err_str:
+                raise YouTubeAPIError("YouTube account token expired or revoked. Please reconnect your YouTube channel in Settings.")
+            raise
 
     async def get_video_analytics(self, youtube_video_id: str) -> dict[str, Any]:
         """Query real analytics for a video. Missing metrics return NOT AVAILABLE."""

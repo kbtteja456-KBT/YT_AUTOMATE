@@ -90,7 +90,7 @@ def detect_language_from_niche(niche: Optional[str]) -> LanguageProfile:
     if not niche:
         return LANG_PROFILES["python"]
 
-    n_lower = niche.strip().lower()
+    n_lower = re.sub(r"\s+", " ", niche.strip().lower())
 
     # C++ check before C
     if "c++" in n_lower or "cpp" in n_lower:
@@ -145,7 +145,7 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             lang_profile=py_prof
         )
 
-    n_lower = niche.strip().lower()
+    n_lower = re.sub(r"\s+", " ", niche.strip().lower())
 
     # 1. Quotes / Stoicism / Motivation
     if any(k in n_lower for k in ["quote", "quotes", "motivat", "stoic", "philosophy", "wisdom", "inspiration", "life lesson"]):
@@ -159,19 +159,7 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             lang_profile=None
         )
 
-    # 2. General Trivia / Riddles / GK
-    if any(k in n_lower for k in ["trivia", "gk", "general knowledge", "riddle", "riddles", "brain teaser", "guess", "fun fact"]):
-        badge = "RIDDLE CHALLENGE" if "riddle" in n_lower else ("GK QUIZ" if "gk" in n_lower else "TRIVIA QUIZ")
-        return ContentArchetype(
-            archetype="trivia_quiz",
-            category="trivia",
-            header_title=badge,
-            default_hashtag="#trivia",
-            hashtags=["#trivia", "#quiz", "#generalknowledge", "#riddles", "#shorts", "#brainteaser"],
-            lang_profile=None
-        )
-
-    # 3. Explicit Code Quiz (must be a quiz, challenge, puzzle, or output question)
+    # 2. Explicit Code Quiz (must be a quiz, challenge, puzzle, or output question)
     is_long_content = len(n_lower.split()) > 7
     is_quiz_intent = any(k in n_lower for k in [
         "quiz", "challenge", "puzzle", "output", "what is the output", "what's the output",
@@ -195,6 +183,18 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             default_hashtag=lang_prof.default_hashtag,
             hashtags=[lang_prof.default_hashtag, "#coding", "#programming", "#shorts", f"#{lang_prof.slug}quiz"],
             lang_profile=lang_prof
+        )
+
+    # 3. General Trivia / Riddles / GK / Non-Coding Quizzes
+    if any(k in n_lower for k in ["trivia", "gk", "general knowledge", "riddle", "riddles", "brain teaser", "guess", "fun fact", "quiz"]):
+        badge = "RIDDLE CHALLENGE" if "riddle" in n_lower else ("GK QUIZ" if "gk" in n_lower else "TRIVIA QUIZ")
+        return ContentArchetype(
+            archetype="trivia_quiz",
+            category="trivia",
+            header_title=badge,
+            default_hashtag="#trivia",
+            hashtags=["#trivia", "#quiz", "#generalknowledge", "#riddles", "#shorts", "#brainteaser"],
+            lang_profile=None
         )
 
     # 4. Universal Documentary & News (Tech News, AI Breakthroughs, Science, History, Informational)
