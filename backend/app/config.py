@@ -58,6 +58,32 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ENABLE_INTERNAL_SCHEDULER", "enable_internal_scheduler")
     )
 
+    # Email & Notifications (Gmail / SMTP)
+    smtp_host: str = Field(
+        default="smtp.gmail.com",
+        validation_alias=AliasChoices("SMTP_HOST", "smtp_host")
+    )
+    smtp_port: int = Field(
+        default=465,
+        validation_alias=AliasChoices("SMTP_PORT", "smtp_port")
+    )
+    smtp_user: str = Field(
+        default="",
+        validation_alias=AliasChoices("SMTP_USER", "smtp_user", "NOTIFICATION_EMAIL", "notification_email")
+    )
+    smtp_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("SMTP_PASSWORD", "smtp_password", "GMAIL_APP_PASSWORD", "gmail_app_password")
+    )
+    smtp_from_name: str = Field(
+        default="YouTube Shorts Autopilot",
+        validation_alias=AliasChoices("SMTP_FROM_NAME", "smtp_from_name")
+    )
+    smtp_use_tls: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("SMTP_USE_TLS", "smtp_use_tls")
+    )
+
     # Local Storage Paths
     media_storage_dir: str = Field(default="./media_storage")
     temp_dir: str = Field(default="./media_storage/temp")

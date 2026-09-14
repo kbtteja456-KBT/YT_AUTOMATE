@@ -123,6 +123,12 @@ jobs:
           OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL || 'nvidia/nemotron-3.5-lightning:free' }}
           TIMEZONE: "Asia/Kolkata"
           ZERO_COST_MODE: "true"
+          SMTP_HOST: ${{ secrets.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '465' }}
+          SMTP_USER: ${{ secrets.SMTP_USER || 'kbtteja456@gmail.com' }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM_NAME: "YouTube Shorts Autopilot"
+          SMTP_USE_TLS: "true"
         run: |
           # 1. Check if Health Check requested
           if [ "${{ github.event_name }}" = "repository_dispatch" ] && [ "${{ github.event.action }}" = "health_check" ]; then

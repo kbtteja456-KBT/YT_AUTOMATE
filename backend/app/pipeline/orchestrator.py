@@ -371,6 +371,19 @@ class PipelineOrchestrator:
                     if target_ws:
                         from backend.app.core.ledger import increment_trial_quota_on_publish_sync
                         increment_trial_quota_on_publish_sync(str(target_ws))
+
+                    # Dispatch post-publication Gmail notification to channel owner
+                    try:
+                        from backend.app.core.notifications import notify_workspace_owner_video_published
+                        notify_workspace_owner_video_published(
+                            workspace_id=target_ws,
+                            video_title=video_title,
+                            video_url=youtube_url,
+                            published_time=published_time,
+                            channel_id=channel_id
+                        )
+                    except Exception as notify_err:
+                        logger.warning(f"[Orchestrator] Email notification dispatch note: {notify_err}")
                 except Exception as upd_e:
                     logger.warning(f"[Orchestrator] Could not update job/video docs with YouTube info: {upd_e}")
 
