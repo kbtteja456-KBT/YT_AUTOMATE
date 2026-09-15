@@ -11,44 +11,40 @@ from backend.app.core.oauth import GoogleOAuthManager
 from backend.app.providers.youtube.youtube_client import YouTubeClientProvider
 from backend.app.models.job import JobState
 
-async def publish_sindhu_video():
+async def publish():
+    print("=========================================================")
+    print("PUBLISHING SINDHU'S PENDING SHORT TO YOUTUBE (UC9LB0BwUOR3c43i7OEoDswg)")
+    print("=========================================================")
+
     db = SyncMongoDB.get_db()
     video_id = ObjectId("6aa93a63cbf9cc578f574aad")
     v = db.videos.find_one({"_id": video_id})
     if not v:
         print("Video not found!")
-        return False
-        
-    fpath = v.get("file_path")
-    if not os.path.exists(fpath):
-        print(f"File not found at {fpath}!")
-        return False
+        return
 
-    ws_id = v.get("workspace_id")
-    tok = db.oauth_tokens.find_one({"workspace_id": ws_id}) or db.oauth_tokens.find_one({"channel_id": "UC9LB0BwUOR3c43i7OEoDswg"})
+    fpath = v.get("file_path")
+    print(f"Video file: {fpath} (Exists: {os.path.exists(fpath)})")
+    if not os.path.exists(fpath):
+        print("File does not exist!")
+        return
+
+    tok = db.oauth_tokens.find_one({"channel_id": "UC9LB0BwUOR3c43i7OEoDswg"})
     if not tok:
-        print("No OAuth token document found!")
-        return False
+        print("Token not found!")
+        return
 
     encrypted_rt = tok.get("encrypted_refresh_token") or tok.get("refresh_token")
-    if not encrypted_rt:
-        print("No refresh token found in token doc!")
-        return False
-
-    try:
-        refresh_token = decrypt_token(encrypted_rt)
-        print("Attempting to refresh Google OAuth token...")
-        token_resp = await GoogleOAuthManager.refresh_access_token(refresh_token)
-        access_token = token_resp["access_token"]
-        print("Access token refreshed successfully!")
-    except Exception as e:
-        print(f"Token refresh failed: {e}")
-        return False
+    refresh_token = decrypt_token(encrypted_rt)
+    print("Refreshing access token...")
+    token_resp = await GoogleOAuthManager.refresh_access_token(refresh_token)
+    access_token = token_resp["access_token"]
+    print("Access token obtained successfully!")
 
     creds = GoogleOAuthManager.get_google_credentials(access_token, refresh_token)
     yt_provider = YouTubeClientProvider(credentials=creds)
 
-    print(f"Uploading '{v.get('title')}' ({fpath})...")
+    print(f"Uploading '{v.get('title')}'...")
     upload_res = await yt_provider.upload_short(
         video_filepath=fpath,
         title=v.get("title"),
@@ -61,7 +57,9 @@ async def publish_sindhu_video():
     yt_url = upload_res.get("url")
     file_hash = upload_res.get("file_hash") or compute_file_hash(fpath)
 
-    print(f"🎉 SUCCESS! Published to YouTube: {yt_id} -> {yt_url}")
+    print(f"\n🎉 SUCCESS! Published to YouTube!")
+    print(f"Video ID: {yt_id}")
+    print(f"Shorts URL: {yt_url}")
 
     now = datetime.now(timezone.utc)
     db.videos.update_one(
@@ -78,6 +76,8 @@ async def publish_sindhu_video():
             }
         }
     )
+    print("Updated video in database to PUBLISHED.")
+
     if v.get("job_id"):
         db.publishing_jobs.update_one(
             {"_id": ObjectId(v["job_id"]) if ObjectId.is_valid(v["job_id"]) else v["job_id"]},
@@ -92,8 +92,7 @@ async def publish_sindhu_video():
                 }
             }
         )
-    return True
+        print("Updated publishing job in database to PUBLISHED.")
 
 if __name__ == "__main__":
-    success = asyncio.run(publish_sindhu_video())
-    sys.exit(0 if success else 1)
+    asyncio.run(publish())
