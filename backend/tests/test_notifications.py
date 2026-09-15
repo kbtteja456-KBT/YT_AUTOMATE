@@ -50,7 +50,11 @@ def test_build_email_content_contains_all_details():
 
 def test_send_email_graceful_when_smtp_not_configured():
     """Test that when SMTP credentials are empty, notification returns False gracefully."""
-    with patch.object(settings, "smtp_user", ""), patch.object(settings, "smtp_password", ""):
+    mock_db = MagicMock()
+    mock_db.system_config.find_one.return_value = None
+    with patch.object(settings, "smtp_user", ""), \
+         patch.object(settings, "smtp_password", ""), \
+         patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
         res = send_video_published_email(
             to_email="user@example.com",
             video_title="Test Short",

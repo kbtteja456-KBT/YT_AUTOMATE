@@ -8,6 +8,7 @@ from pathlib import Path
 from backend.app.core.logging import logger
 from backend.app.core.errors import AutopilotError, QCScoreThresholdError, DuplicateUploadPreventedError
 from backend.app.core.security import compute_file_hash
+from pymongo.errors import DuplicateKeyError
 from backend.app.models.job import JobState, PublishingJob, JobStageLog
 from backend.app.models.video import Video
 from backend.app.models.settings import ChannelSettings
@@ -252,7 +253,18 @@ class PipelineOrchestrator:
         )
 
         if self.video_repo:
-            await self.video_repo.create_video(video_record)
+            if video_record.file_hash:
+                existing_vid = await self.video_repo.get_video_by_hash(video_record.file_hash)
+                if existing_vid:
+                    raise DuplicateUploadPreventedError(
+                        f"Video with hash {video_record.file_hash} was already published (title: '{existing_vid.title}'). Duplicate upload blocked."
+                    )
+            try:
+                await self.video_repo.create_video(video_record)
+            except DuplicateKeyError as dk_err:
+                raise DuplicateUploadPreventedError(
+                    f"Video with hash {video_record.file_hash} already exists in database. Duplicate upload blocked."
+                ) from dk_err
 
         # DRY RUN MODE: Complete verification without public upload
         if dry_run:
@@ -458,14 +470,14 @@ class PipelineOrchestrator:
         """Execute all stages sequentially with automatic resumption and duplicate retry protection."""
         logger.info(f"[Orchestrator] Beginning execution for Job {job_id} (slot: {slot_index}, prompt: '{custom_prompt}', duration: {target_duration_sec}s, dry_run: {dry_run})...")
 
-        max_duplicate_retries = 3
+        max_duplicate_retries = 5
         past_topics: list[str] = []
         try:
             from backend.app.core.db import SyncMongoDB
             db = SyncMongoDB.get_db()
             past_topics = [
                 v.get("title", "") or v.get("topic", "")
-                for v in db.videos.find({}, {"title": 1, "topic": 1}).sort("created_at", -1).limit(30)
+                for v in db.videos.find({}, {"title": 1, "topic": 1}).sort("created_at", -1).limit(60)
                 if v.get("title") or v.get("topic")
             ]
         except Exception as dbe:
@@ -512,7 +524,7 @@ class PipelineOrchestrator:
                     target_duration_sec=target_duration_sec
                 )
 
-            except DuplicateUploadPreventedError as dup_err:
+            except (DuplicateUploadPreventedError, DuplicateKeyError) as dup_err:
                 logger.warning(
                     f"\n============================================================\n"
                     f"⚠️ [DUPLICATE DETECTED] {dup_err}\n"
@@ -520,12 +532,13 @@ class PipelineOrchestrator:
                     f"Immediately regenerating a brand new Short with a fresh topic and publishing...\n"
                     f"============================================================"
                 )
-                past_topics.append(topic)
+                if topic:
+                    past_topics.append(topic)
                 topic_override = None  # Clear topic override so fresh topic is selected
                 if attempt < max_duplicate_retries:
                     continue
                 # Exhausted duplicate retries
-                await self._transition_state(job_id, JobState.FAILED, error=f"[UPLOADING] {dup_err}")
+                await self._transition_state(job_id, JobState.FAILED, error=f"[DUPLICATE_EXHAUSTED] {dup_err}")
                 raise RuntimeError(
                     f"Failed after {max_duplicate_retries} attempts: Duplicate video could not be replaced."
                 ) from dup_err

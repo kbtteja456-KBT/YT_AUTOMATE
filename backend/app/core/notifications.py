@@ -244,10 +244,25 @@ def send_video_published_email(
         logger.warning(f"[Notifications] Invalid recipient email address: '{to_email}'")
         return False
 
+    clean_user = (settings.smtp_user or "").strip()
+    clean_password = (settings.smtp_password or "").strip().replace(" ", "")
+
+    # Fallback: if not set in environment (e.g. GitHub Actions runner without secrets), check MongoDB system_config
+    if not clean_user or not clean_password:
+        try:
+            from backend.app.core.db import SyncMongoDB
+            db = SyncMongoDB.get_db()
+            cfg = db.system_config.find_one({"key": "smtp_config"})
+            if cfg:
+                clean_user = clean_user or (cfg.get("smtp_user") or "").strip()
+                clean_password = clean_password or (cfg.get("smtp_password") or "").strip().replace(" ", "")
+        except Exception as dbe:
+            logger.debug(f"[Notifications] Could not fetch fallback SMTP config from DB: {dbe}")
+
     # Check if SMTP credentials are configured
-    if not settings.smtp_user or not settings.smtp_password:
+    if not clean_user or not clean_password:
         logger.info(
-            f"[Notifications] SMTP credentials not set in environment (SMTP_USER/SMTP_PASSWORD). "
+            f"[Notifications] SMTP credentials not set in environment or database. "
             f"Skipped sending email notification to {to_email}."
         )
         return False
@@ -265,7 +280,7 @@ def send_video_published_email(
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🎬 Your YouTube Short is Live: {video_title}"
-    msg["From"] = f"{settings.smtp_from_name} <{settings.smtp_user}>"
+    msg["From"] = f"{settings.smtp_from_name} <{clean_user}>"
     msg["To"] = to_email
     if cc_email and "@" in cc_email:
         msg["Cc"] = cc_email
@@ -275,20 +290,27 @@ def send_video_published_email(
 
     try:
         if settings.smtp_port == 465:
-            with smtplib.SMTP_SSL(settings.smtp_host, 465, timeout=25) as server:
-                server.login(settings.smtp_user, settings.smtp_password)
-                server.send_message(msg)
+            try:
+                with smtplib.SMTP_SSL(settings.smtp_host, 465, timeout=25) as server:
+                    server.login(clean_user, clean_password)
+                    server.send_message(msg)
+            except Exception as ssl_err:
+                logger.info(f"[Notifications] Port 465 SSL connection failed ({ssl_err}). Retrying via STARTTLS port 587...")
+                with smtplib.SMTP(settings.smtp_host, 587, timeout=20) as server:
+                    server.starttls()
+                    server.login(clean_user, clean_password)
+                    server.send_message(msg)
         else:
             try:
-                with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+                with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
                     if settings.smtp_use_tls:
                         server.starttls()
-                    server.login(settings.smtp_user, settings.smtp_password)
+                    server.login(clean_user, clean_password)
                     server.send_message(msg)
             except Exception as tls_err:
                 logger.info(f"[Notifications] Port {settings.smtp_port} failed ({tls_err}). Retrying via SSL port 465...")
                 with smtplib.SMTP_SSL(settings.smtp_host, 465, timeout=25) as server:
-                    server.login(settings.smtp_user, settings.smtp_password)
+                    server.login(clean_user, clean_password)
                     server.send_message(msg)
 
         logger.info(f"📧 [Notifications] Successfully sent publication email to {to_email} for Short '{video_title}'")

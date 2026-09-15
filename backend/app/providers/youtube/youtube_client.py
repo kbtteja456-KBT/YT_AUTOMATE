@@ -142,11 +142,22 @@ class YouTubeClientProvider(YouTubeProvider):
             )
 
             response = None
+            max_chunk_retries = 5
             while response is None:
-                status, response = insert_request.next_chunk()
-                if status:
-                    progress_pct = int(status.progress() * 100)
-                    logger.info(f"YouTube Upload Progress: {progress_pct}%")
+                for chunk_attempt in range(max_chunk_retries):
+                    try:
+                        status, response = insert_request.next_chunk()
+                        if status:
+                            progress_pct = int(status.progress() * 100)
+                            logger.info(f"YouTube Upload Progress: {progress_pct}%")
+                        break
+                    except Exception as chunk_err:
+                        if chunk_attempt < max_chunk_retries - 1:
+                            wait_s = (chunk_attempt + 1) * 3
+                            logger.warning(f"YouTube upload chunk interrupted ({chunk_err}). Retrying chunk in {wait_s}s...")
+                            time.sleep(wait_s)
+                        else:
+                            raise
 
             video_id = response.get("id")
             if not video_id:

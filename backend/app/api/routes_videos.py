@@ -393,6 +393,19 @@ async def publish_video_now(
                 }
             )
 
+        # Dispatch post-publication Gmail notification
+        try:
+            from backend.app.core.notifications import notify_workspace_owner_video_published
+            notify_workspace_owner_video_published(
+                workspace_id=video_doc.get("workspace_id"),
+                video_title=str(video_doc.get("title", "YouTube Short")),
+                video_url=upload_res.get("youtube_url", ""),
+                published_time=now_utc,
+                channel_id=video_doc.get("channel_id")
+            )
+        except Exception as notify_err:
+            logger.warning(f"[ManualUpload] Email notification dispatch note: {notify_err}")
+
         return {
             "status": "PUBLISHED",
             "youtube_video_id": upload_res.get("youtube_video_id"),

@@ -110,6 +110,12 @@ jobs:
             echo "✅ All 6 required GitHub Secrets are configured."
           fi
 
+          if [ -z "${{ secrets.SMTP_PASSWORD }}" ]; then
+            echo "⚠️ NOTICE: SMTP_PASSWORD is not set in GitHub Secrets. Publication emails will be skipped."
+          else
+            echo "✅ SMTP_PASSWORD configured for email notifications."
+          fi
+
       - name: Execute Cloud Autopilot
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
@@ -124,7 +130,7 @@ jobs:
           TIMEZONE: "Asia/Kolkata"
           ZERO_COST_MODE: "true"
           SMTP_HOST: ${{ secrets.SMTP_HOST || 'smtp.gmail.com' }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT || '465' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
           SMTP_USER: ${{ secrets.SMTP_USER || 'kbtteja456@gmail.com' }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM_NAME: "YouTube Shorts Autopilot"

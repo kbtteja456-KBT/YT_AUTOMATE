@@ -613,13 +613,15 @@ class IdeaAgent(BaseAgent):
         try:
             from backend.app.core.db import SyncMongoDB
             db = SyncMongoDB.get_db()
-            items = list(db.content_memory.find().sort("created_at", -1).limit(40))
+            items = list(db.content_memory.find().sort("created_at", -1).limit(60))
             # Also read recent published videos to prevent duplicate concepts
-            video_cursor = db.videos.find({"status": "PUBLISHED"}).sort("created_at", -1).limit(40)
+            video_cursor = db.videos.find().sort("created_at", -1).limit(60)
             for v in video_cursor:
+                title = v.get("title") or ""
+                tag = v.get("concept_tag") or title.lower().replace(" ", "_").replace("#shorts", "").strip(" _")
                 items.append({
-                    "concept_tag": v.get("concept_tag"),
-                    "topic": v.get("title"),
+                    "concept_tag": tag,
+                    "topic": title,
                     "question_code": v.get("description"),
                 })
             return items
@@ -688,9 +690,12 @@ class IdeaAgent(BaseAgent):
             tag = m.get("concept_tag")
             if tag and tag not in recent_concepts:
                 recent_concepts.append(tag)
+            title = m.get("topic")
+            if title and title not in recent_concepts:
+                recent_concepts.append(title)
 
         past_snippets = [m.get("question_code", "").strip() for m in memory if m.get("question_code")]
-        excluded_tags_str = ", ".join(recent_concepts[:15]) if recent_concepts else "None"
+        excluded_tags_str = ", ".join(recent_concepts[:35]) if recent_concepts else "None"
 
         # -------------------------------------------------------------
         # 1. QUOTE CARD ARCHETYPE (Stoicism, Motivation, Life Wisdom)
@@ -846,7 +851,7 @@ class IdeaAgent(BaseAgent):
                     f"1. CODE: Clean, readable at a glance, strictly 3 to 7 lines max. Valid Python 3 syntax.\n"
                     f"2. OPTIONS: Exactly 4 options (A, B, C, D). Exactly 1 is correct.\n"
                     f"3. DECEPTIVE: Wrong answers must be plausible near-misses a beginner would pick.\n"
-                    f"4. Avoid recently covered topics: {past_topics[-10:] if past_topics else 'None'}."
+                    f"4. Avoid recently covered topics: {past_topics[-35:] if past_topics else 'None'}."
                 )
                 system_prompt = "You are an expert Python educator creating deceptive, educational 'What's the output?' quiz Shorts."
                 fallback_pool = PYTHON_QUIZ_POOL
@@ -859,7 +864,7 @@ class IdeaAgent(BaseAgent):
                     f"1. CODE: Clean, readable at a glance, strictly 3 to 7 lines max. Valid {lang_profile.display_name} syntax (e.g. valid main() function with standard output).\n"
                     f"2. OPTIONS: Exactly 4 options (A, B, C, D). Exactly 1 is correct.\n"
                     f"3. DECEPTIVE: Wrong answers must be plausible near-misses a beginner would pick.\n"
-                    f"4. Avoid recently covered topics: {past_topics[-10:] if past_topics else 'None'}."
+                    f"4. Avoid recently covered topics: {past_topics[-35:] if past_topics else 'None'}."
                 )
                 system_prompt = f"You are an expert {lang_profile.display_name} educator creating deceptive, educational 'What's the output?' quiz Shorts."
                 if lang_profile.slug in ("c", "cpp"):

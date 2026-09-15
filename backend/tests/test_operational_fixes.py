@@ -642,6 +642,115 @@ async def test_orchestrator_immediate_regeneration_on_duplicate():
 
 
 @pytest.mark.anyio
+async def test_duplicate_hash_in_video_repo_triggers_immediate_regeneration():
+    """Verify that when a generated video has a duplicate file_hash already in DB,
+    orchestrator automatically intercepts it, regenerates a fresh Short, and publishes.
+    """
+    import mongomock
+    from backend.app.models.video import QCReport
+    from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
+    from pymongo.errors import DuplicateKeyError
+    from backend.app.pipeline.orchestrator import PipelineOrchestrator
+
+    mock_db = mongomock.MongoClient()["youtube_autopilot"]
+    mock_db.publishing_jobs.insert_one({"_id": "retry_hash_job_1", "state": "RUNNING"})
+
+    mock_idea = AsyncMock()
+    mock_idea.generate_daily_topic.side_effect = [
+        {"topic": "Duplicate Python Enumerate Quiz"},
+        {"topic": "Fresh Python Slicing Quiz"}
+    ]
+    mock_research = AsyncMock()
+    mock_research.conduct_research.return_value = MagicMock(key_takeaway="takeaway")
+    mock_fact = AsyncMock()
+    mock_fact.verify_and_prune.return_value = MagicMock(key_takeaway="takeaway")
+    mock_hook = AsyncMock()
+    mock_hook.generate_and_score_hooks.return_value = [MagicMock(text="Hook", selected=True)]
+    mock_script = AsyncMock()
+    mock_script.generate_script.return_value = MagicMock(target_duration_sec=30.0)
+    mock_storyboard = AsyncMock()
+    mock_storyboard.create_storyboard.return_value = MagicMock(scenes=[])
+    mock_media = AsyncMock()
+    mock_media.collect_scene_assets.return_value = MagicMock()
+    mock_voice = AsyncMock()
+    mock_voice.generate_voiceover.return_value = "/fake/voice.mp3"
+    mock_caption = AsyncMock()
+    mock_caption.generate_captions.return_value = ("/fake/caps.ass", [])
+    mock_editor = AsyncMock()
+    mock_editor.render_video.side_effect = ["/fake/dup.mp4", "/fake/fresh.mp4"]
+    mock_qc = AsyncMock()
+    mock_qc.audit_video.return_value = QCReport(
+        passed=True,
+        score=95.0,
+        checks={"video": True, "audio": True},
+        details={"metadata": {"duration": 30.0}}
+    )
+    mock_thumb = AsyncMock()
+    mock_thumb.generate_custom_thumbnail.return_value = ThumbnailCard(
+        file_path="dummy_thumb.png",
+        file_hash="thash",
+        spec=ThumbnailSpec(source_frame_timestamp=0.0, overlay_text="")
+    )
+    mock_title = AsyncMock()
+    mock_title.generate_title_and_tags.return_value = {
+        "title": "Fresh Python Quiz #Shorts",
+        "tags": ["python"],
+        "hashtags": ["#python"]
+    }
+    mock_desc = AsyncMock()
+    mock_desc.generate_description.return_value = "Fresh Quiz description #Shorts"
+
+    mock_yt = AsyncMock()
+    mock_yt.publish_short.return_value = {
+        "youtube_video_id": "yt_fresh_999",
+        "youtube_url": "https://www.youtube.com/shorts/yt_fresh_999",
+        "file_hash": "fresh_unique_hash",
+        "status": "PUBLISHED"
+    }
+
+    mock_video_repo = AsyncMock()
+    # First attempt: existing video found with duplicate hash!
+    # Second attempt: None found, create_video succeeds!
+    mock_video_repo.get_video_by_hash.side_effect = [
+        MagicMock(title="Old Enumerate Video"),
+        None
+    ]
+    mock_video_repo.create_video.return_value = MagicMock()
+
+    orchestrator = PipelineOrchestrator(
+        idea_agent=mock_idea,
+        research_agent=mock_research,
+        fact_check_agent=mock_fact,
+        hook_agent=mock_hook,
+        script_agent=mock_script,
+        storyboard_agent=mock_storyboard,
+        media_agent=mock_media,
+        voice_agent=mock_voice,
+        caption_agent=mock_caption,
+        editor_agent=mock_editor,
+        qc_agent=mock_qc,
+        thumbnail_agent=mock_thumb,
+        title_agent=mock_title,
+        description_agent=mock_desc,
+        youtube_agent=mock_yt,
+    )
+    orchestrator.video_repo = mock_video_repo
+
+    with patch("backend.app.pipeline.orchestrator.compute_file_hash", side_effect=["dup_hash_111", "fresh_hash_222"]):
+        with patch("backend.app.core.db.SyncMongoDB.get_db", return_value=mock_db):
+            result = await orchestrator.execute_job(
+                job_id="retry_hash_job_1",
+                publish_immediately=True,
+                slot_index=1
+            )
+
+    assert result["status"] == "PUBLISHED"
+    assert result["youtube_video_id"] == "yt_fresh_999"
+    assert mock_idea.generate_daily_topic.call_count == 2
+    assert mock_editor.render_video.call_count == 2
+
+
+@pytest.mark.anyio
 async def test_video_repository_delete_video():
     """Verify VideoRepository delete_video removes document by ID."""
     import mongomock
