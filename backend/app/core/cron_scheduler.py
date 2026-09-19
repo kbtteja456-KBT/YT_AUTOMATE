@@ -225,6 +225,62 @@ async def execute_slot_pipeline(
                 return {"status": "QUOTA_EXHAUSTED", "reason": reason, "workspace_id": workspace_id}
 
         job_id = str(existing["_id"])
+
+        # Fast-Path: If this job already produced a complete READY video on disk with QC passed, publish directly
+        from pathlib import Path
+        existing_vid = db.videos.find_one({"job_id": job_id, "status": "READY"})
+        if existing_vid and existing_vid.get("file_path") and Path(str(existing_vid["file_path"])).exists():
+            from backend.app.celery_app.tasks import _get_authenticated_youtube_provider
+            from backend.app.agents.youtube import YouTubeAgent
+            from backend.app.models.thumbnail import ThumbnailCard, ThumbnailSpec
+            yt_provider = _get_authenticated_youtube_provider(db, workspace_id=workspace_id)
+            if getattr(yt_provider, "credentials", None):
+                try:
+                    logger.info(f"⚡ [Fast-Path Publishing] Found pre-rendered READY video for job {job_id}. Publishing directly to YouTube...")
+                    yt_agent = YouTubeAgent(youtube_provider=yt_provider)
+                    thumb_card = None
+                    if existing_vid.get("thumbnail_path") and Path(str(existing_vid["thumbnail_path"])).exists():
+                        thumb_card = ThumbnailCard(
+                            file_path=str(existing_vid["thumbnail_path"]),
+                            file_hash="thumb",
+                            spec=ThumbnailSpec(source_frame_timestamp=0.0, overlay_text="")
+                        )
+                    pub_res = await yt_agent.publish_short(
+                        video_filepath=str(existing_vid["file_path"]),
+                        title=str(existing_vid.get("title", "YouTube Short")),
+                        description=str(existing_vid.get("description", "")),
+                        tags=list(existing_vid.get("tags") or ["Shorts"]),
+                        thumbnail=thumb_card,
+                        privacy_status="public"
+                    )
+                    now_utc = datetime.now(timezone.utc)
+                    db.videos.update_one(
+                        {"_id": existing_vid["_id"]},
+                        {"$set": {
+                            "status": "PUBLISHED",
+                            "youtube_video_id": pub_res.get("youtube_video_id"),
+                            "youtube_url": pub_res.get("youtube_url"),
+                            "youtube_published_at": now_utc,
+                            "updated_at": now_utc
+                        }}
+                    )
+                    db.publishing_jobs.update_one(
+                        {"_id": existing["_id"]},
+                        {"$set": {
+                            "state": JobState.PUBLISHED.value,
+                            "last_completed_stage": "PUBLISHED",
+                            "updated_at": now_utc,
+                            "error_message": None
+                        }}
+                    )
+                    if workspace_id:
+                        from backend.app.core.ledger import increment_trial_quota_on_publish_sync
+                        increment_trial_quota_on_publish_sync(str(workspace_id))
+                    logger.info(f"✅ [Fast-Path Publishing] Video successfully published to YouTube: {pub_res.get('youtube_url')}")
+                    return {"status": "PUBLISHED", "youtube_url": pub_res.get("youtube_url"), "job_id": job_id}
+                except Exception as up_err:
+                    logger.warning(f"Fast-path YouTube publish failed: {up_err}. Proceeding to standard pipeline execution.")
+
         db.publishing_jobs.update_one(
             {"_id": existing["_id"]},
             {"$set": {"state": JobState.RUNNING.value, "error_message": None, "updated_at": now}}
@@ -329,6 +385,29 @@ async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str) ->
                     logger.info(f"[Tenant Autopilot] Workspace '{ws_name}' has no active OAuth credentials. Skipping.")
                     continue
 
+                # 1b. Pre-flight credential verification to avoid wasting compute if token is revoked/expired
+                try:
+                    from backend.app.models.channel import OAuthTokenRecord
+                    from backend.app.core.oauth import GoogleOAuthManager
+                    from google.auth.transport.requests import Request
+                    rec = OAuthTokenRecord.model_validate(tok)
+                    rf = rec.get_refresh_token()
+                    acc = rec.get_access_token()
+                    creds = GoogleOAuthManager.get_google_credentials(acc, rf)
+                    creds.refresh(Request())
+                except Exception as tok_err:
+                    err_str = str(tok_err).lower()
+                    if "invalid_grant" in err_str or "expired or revoked" in err_str:
+                        logger.warning(
+                            f"⚠️ [Tenant Autopilot] Workspace '{ws_name}' YouTube OAuth token is expired or revoked ({tok_err}). "
+                            f"Skipping pipeline for this workspace until user reconnects in Settings."
+                        )
+                        db.youtube_channels.update_one(
+                            {"_id": chan["_id"]},
+                            {"$set": {"is_active": False, "error_message": "YouTube token expired or revoked. Please reconnect in Settings."}}
+                        )
+                        continue
+
                 # 2. Already published today check
                 if is_slot_published_today(slot_index, today_str, workspace_id=ws_id):
                     continue
@@ -361,7 +440,8 @@ def reconcile_stuck_in_progress_jobs():
         from backend.app.models.job import JobState
         db = SyncMongoDB.get_db()
         now_utc = datetime.now(timezone.utc)
-        stale_threshold = now_utc - timedelta(minutes=15)
+        # Give jobs up to 25 minutes of inactivity before considering them stuck
+        stale_threshold = now_utc - timedelta(minutes=25)
 
         active_states = [
             JobState.RUNNING.value,
@@ -375,12 +455,12 @@ def reconcile_stuck_in_progress_jobs():
             JobState.UPLOADING.value,
         ]
 
+        # Only sweep jobs that have had NO heartbeat/update for 25+ minutes
         stale_jobs = list(db.publishing_jobs.find({
             "state": {"$in": active_states},
             "$or": [
                 {"updated_at": {"$lt": stale_threshold}},
-                {"created_at": {"$lt": stale_threshold}},
-                {"updated_at": {"$exists": False}},
+                {"updated_at": {"$exists": False}, "created_at": {"$lt": stale_threshold}},
             ]
         }))
 

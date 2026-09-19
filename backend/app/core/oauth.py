@@ -17,7 +17,8 @@ YOUTUBE_CHANNELS_API = "https://www.googleapis.com/youtube/v3/channels"
 DEFAULT_SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
-    "https://www.googleapis.com/auth/yt-analytics.readonly"
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+    "https://www.googleapis.com/auth/youtube.force-ssl"
 ]
 
 
@@ -203,5 +204,5 @@ class GoogleOAuthManager:
             token_uri=GOOGLE_TOKEN_URI,
             client_id=client_id or settings.google_client_id,
             client_secret=client_secret or settings.google_client_secret,
-            scopes=DEFAULT_SCOPES
+            scopes=None
         )

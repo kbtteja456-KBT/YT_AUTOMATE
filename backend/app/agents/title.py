@@ -7,6 +7,54 @@ from backend.app.models.video import Script
 from backend.app.core.language_detector import detect_language_from_niche
 
 
+def format_viral_title(base_title: str, hashtags: list[str], max_len: int = 95) -> str:
+    """Format a high-CTR YouTube Short title with curiosity hook and viral hashtags.
+
+    Rules:
+    1. Strip existing hashtags from base_title to get a clean hook.
+    2. Must include '#Shorts' and '#viral'.
+    3. Include 1-2 top relevant niche hashtags from `hashtags`.
+    4. Never exceed `max_len` (defaults to 95 characters, safely below YouTube's 100 limit).
+    """
+    clean_hook = re.sub(r'#\w+', '', base_title).strip()
+    clean_hook = re.sub(r'\s+[-–—|:]\s*$', '', clean_hook).strip()
+    if not clean_hook:
+        clean_hook = "Watch This Coding Puzzle 💻"
+
+    # Truncate clean hook if it is too long to fit viral hashtags
+    if len(clean_hook) > 55:
+        cut = clean_hook[:52].rsplit(' ', 1)[0]
+        clean_hook = (cut or clean_hook[:52]).strip()
+
+    # Build prioritized hashtags list: #Shorts and #viral are mandatory
+    priority_tags = ["#Shorts", "#viral"]
+    seen = {t.lower() for t in priority_tags}
+
+    if hashtags:
+        for tag in hashtags:
+            clean_tag = tag.strip()
+            if not clean_tag.startswith("#"):
+                clean_tag = f"#{clean_tag}"
+            if clean_tag.lower() not in seen and len(clean_tag) > 2:
+                priority_tags.append(clean_tag)
+                seen.add(clean_tag.lower())
+
+    current_title = clean_hook
+    for tag in priority_tags:
+        candidate = f"{current_title} {tag}"
+        if len(candidate) <= max_len:
+            current_title = candidate
+        else:
+            break
+
+    # If #Shorts somehow didn't fit, force it at the end
+    if "#shorts" not in current_title.lower():
+        avail = max_len - 8
+        current_title = f"{current_title[:avail].strip()} #Shorts"
+
+    return current_title
+
+
 class TitleAgent(BaseAgent):
     """Generates viral, curiosity-inducing titles, tags, and hashtags."""
 
@@ -22,9 +70,9 @@ class TitleAgent(BaseAgent):
         # -------------------------------------------------------------
         if c_format == "quote_card":
             author = script.quote_author or "Wisdom"
-            title = f"{author} On How To Live 🧠 #Shorts"
             hashtags = ["#quotes", "#motivation", "#wisdom", "#stoicism", "#shorts"]
             tags = ["quotes", "motivation", "wisdom", "stoic", author.lower(), "life lessons", "shorts"]
+            title = format_viral_title(f"{author} On How To Live 🧠", hashtags)
             return {
                 "title": title,
                 "hashtags": hashtags,
@@ -35,9 +83,9 @@ class TitleAgent(BaseAgent):
         # 2. TRIVIA QUIZ FORMAT
         # -------------------------------------------------------------
         if c_format == "trivia_quiz":
-            title = "Only 1% Can Answer This Question 🧠 #Shorts"
             hashtags = ["#trivia", "#quiz", "#generalknowledge", "#riddles", "#shorts"]
             tags = ["trivia", "quiz", "general knowledge", "brain teaser", "riddles", "shorts"]
+            title = "Only 1% Can Answer This Question 🧠"
             prompt = (
                 f"Topic: '{script.topic}'.\n"
                 f"Question: {script.question_text or script.question_code}\n\n"
@@ -58,19 +106,18 @@ class TitleAgent(BaseAgent):
             try:
                 resp = await self.ai.generate_structured(prompt=prompt, response_schema=schema)
                 title = resp.get("title", title).strip()
-                if not title.endswith("#Shorts") and len(title) < 52:
-                    title = f"{title} #Shorts"
                 hashtags = resp.get("hashtags", hashtags)
                 tags = resp.get("tags", tags)
             except Exception:
                 pass
 
+            title = format_viral_title(title, hashtags)
             return {"title": title, "hashtags": hashtags, "tags": tags}
 
         # -------------------------------------------------------------
         # 3. CODE QUIZ FORMAT (Python for Owner, Language for Tenants)
         # -------------------------------------------------------------
-        is_quiz = (c_format == "quiz_card")
+        is_quiz = (c_format in ("quiz_card", "code_quiz")) or bool(getattr(script, "question_code", None))
         if is_quiz:
             lang_profile = detect_language_from_niche(getattr(script, "language", None) or script.topic)
             is_python = (lang_profile.slug == "python")
@@ -86,7 +133,7 @@ class TitleAgent(BaseAgent):
                 f"Concept: '{clean_concept}'.\n"
                 f"Question Code:\n{script.question_code}\n\n"
                 f"Generate:\n"
-                f"1. 'title': Short, curiosity-driven YouTube Short title under 60 chars (e.g. \"{prompt_example}\").\n"
+                f"1. 'title': Short, curiosity-driven YouTube Short title under 60 chars (e.g. \"{prompt_example}\" or \"{lang_name} Quiz: {clean_concept} #Shorts\").\n"
                 f"2. 'hashtags': Mix of broad ({lang_profile.default_hashtag}, #coding, #programming, #shorts) and specific (#{lang_profile.slug}quiz, #codingchallenge, #{concept.replace('_', '')}).\n"
                 f"3. 'tags': 6 to 10 search keyword tags."
             )
@@ -101,24 +148,29 @@ class TitleAgent(BaseAgent):
             }
 
             if is_python:
-                title = "You'll get this Python question wrong 🐍 #Shorts"
+                title = f"Python Quiz: {clean_concept} 🐍" if len(f"Python Quiz: {clean_concept} 🐍") <= 50 else "You'll get this Python question wrong 🐍"
                 hashtags = ["#python", "#coding", "#programming", "#shorts", "#pythonquiz", f"#{concept.replace('_', '')}"]
                 tags = ["python", "python quiz", "coding challenge", "python tricks", clean_concept, "learn python", "shorts"]
             else:
-                title = f"You'll get this {lang_name} question wrong 💻 #Shorts"
+                title = f"You'll get this {lang_name} question wrong 💻"
                 hashtags = [lang_profile.default_hashtag, "#coding", "#programming", "#shorts", f"#{lang_profile.slug}quiz", f"#{concept.replace('_', '')}"]
                 tags = [lang_profile.slug, f"{lang_profile.slug} programming", f"{lang_profile.slug} quiz", "coding challenge", clean_concept, "shorts"]
 
             try:
                 resp = await self.ai.generate_structured(prompt=prompt, response_schema=schema)
-                title = resp.get("title", title).strip()
-                if not title.endswith("#Shorts") and len(title) < 52:
-                    title = f"{title} #Shorts"
+                cand_title = resp.get("title", "").strip()
+                if cand_title:
+                    # Enforce language name in title for unmistakable branding
+                    if lang_profile.slug in cand_title.lower() or lang_name.lower() in cand_title.lower():
+                        title = cand_title
+                    else:
+                        title = f"{lang_name} Quiz: {cand_title}"
                 hashtags = resp.get("hashtags", hashtags)
                 tags = resp.get("tags", tags)
             except Exception:
                 pass
 
+            title = format_viral_title(title, hashtags)
             self.log(f"Quiz Title generated: '{title}' ({len(title)} chars)")
             return {
                 "title": title,

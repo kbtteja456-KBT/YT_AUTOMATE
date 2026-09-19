@@ -1058,12 +1058,18 @@ class IdeaAgent(BaseAgent):
             }
         else:
             lang_profile = archetype_info.lang_profile or detect_language_from_niche(niche)
+            import re
+            clean_t = re.sub(r'#\w+', '', chosen_topic).strip()
+            # Remove any existing language quiz prefix so we can standardize cleanly
+            clean_t = re.sub(rf'^(?:{re.escape(lang_profile.display_name)}|\w+)\s+(?:quiz|challenge|trivia)?\s*:\s*', '', clean_t, flags=re.I).strip()
+            canonical_topic = f"{lang_profile.display_name} Quiz: {clean_t} #Shorts" if clean_t else f"{lang_profile.display_name} Quiz #{concept_tag} #Shorts"
+
             question_code = chosen.get("question_code") or default_item["question_code"]
             options = chosen.get("options") or default_item["options"]
             correct_option = chosen.get("correct_option") or default_item["correct_option"]
             explanation = chosen.get("explanation") or default_item["explanation"]
             result = {
-                "topic": chosen_topic,
+                "topic": canonical_topic,
                 "angle": chosen.get("angle", f"{lang_profile.display_name} quiz challenge"),
                 "why_viral": "High retention quiz",
                 "concept_tag": concept_tag,

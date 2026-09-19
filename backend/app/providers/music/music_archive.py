@@ -39,36 +39,14 @@ from backend.app.providers.base import MusicProvider
 # ---------------------------------------------------------------------------
 _INCOMPETECH_FALLBACK_TRACKS: list[dict[str, str]] = [
     {
-        "filename": "incompetech_pixel_peeker_polka.mp3",
-        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Pixel%20Peeker%20Polka%20-%20faster.mp3",
-        "title": "Pixel Peeker Polka - faster",
+        "filename": "incompetech_monkeys_spinning.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Monkeys%20Spinning%20Monkeys.mp3",
+        "title": "Monkeys Spinning Monkeys",
         "artist": "Kevin MacLeod",
-        "mood": "upbeat_quiz",
+        "mood": "viral_meme_upbeat",
         "license": "Creative Commons Attribution 4.0 International",
         "license_url": "https://creativecommons.org/licenses/by/4.0/",
-        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100783",
-        "requires_attribution": "true",
-    },
-    {
-        "filename": "incompetech_investigations.mp3",
-        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Investigations.mp3",
-        "title": "Investigations",
-        "artist": "Kevin MacLeod",
-        "mood": "suspense_thinking",
-        "license": "Creative Commons Attribution 4.0 International",
-        "license_url": "https://creativecommons.org/licenses/by/4.0/",
-        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100460",
-        "requires_attribution": "true",
-    },
-    {
-        "filename": "incompetech_scheming_weasel.mp3",
-        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Scheming%20Weasel%20%28faster%20version%29.mp3",
-        "title": "Scheming Weasel (faster version)",
-        "artist": "Kevin MacLeod",
-        "mood": "upbeat_quirky",
-        "license": "Creative Commons Attribution 4.0 International",
-        "license_url": "https://creativecommons.org/licenses/by/4.0/",
-        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100811",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1200105",
         "requires_attribution": "true",
     },
     {
@@ -76,21 +54,98 @@ _INCOMPETECH_FALLBACK_TRACKS: list[dict[str, str]] = [
         "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Sneaky%20Snitch.mp3",
         "title": "Sneaky Snitch",
         "artist": "Kevin MacLeod",
-        "mood": "suspense_trivia",
+        "mood": "viral_puzzle_trivia",
         "license": "Creative Commons Attribution 4.0 International",
         "license_url": "https://creativecommons.org/licenses/by/4.0/",
         "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100105",
         "requires_attribution": "true",
     },
     {
-        "filename": "incompetech_monkeys_spinning.mp3",
-        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Monkeys%20Spinning%20Monkeys.mp3",
-        "title": "Monkeys Spinning Monkeys",
+        "filename": "incompetech_pixel_peeker_polka.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Pixel%20Peeker%20Polka%20-%20faster.mp3",
+        "title": "Pixel Peeker Polka - faster",
         "artist": "Kevin MacLeod",
-        "mood": "upbeat_fun",
+        "mood": "viral_fast_quiz",
         "license": "Creative Commons Attribution 4.0 International",
         "license_url": "https://creativecommons.org/licenses/by/4.0/",
-        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1200105",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100783",
+        "requires_attribution": "true",
+    },
+    {
+        "filename": "incompetech_fluffing_a_duck.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Fluffing%20a%20Duck.mp3",
+        "title": "Fluffing a Duck",
+        "artist": "Kevin MacLeod",
+        "mood": "viral_comedy_quirky",
+        "license": "Creative Commons Attribution 4.0 International",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100768",
+        "requires_attribution": "true",
+    },
+    {
+        "filename": "incompetech_carefree.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carefree.mp3",
+        "title": "Carefree",
+        "artist": "Kevin MacLeod",
+        "mood": "viral_upbeat_happy",
+        "license": "Creative Commons Attribution 4.0 International",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400037",
+        "requires_attribution": "true",
+    },
+    {
+        "filename": "incompetech_who_likes_to_party.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Who%20Likes%20to%20Party.mp3",
+        "title": "Who Likes to Party",
+        "artist": "Kevin MacLeod",
+        "mood": "viral_high_energy",
+        "license": "Creative Commons Attribution 4.0 International",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1200075",
+        "requires_attribution": "true",
+    },
+    {
+        "filename": "incompetech_investigations.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Investigations.mp3",
+        "title": "Investigations",
+        "artist": "Kevin MacLeod",
+        "mood": "viral_suspense_thinking",
+        "license": "Creative Commons Attribution 4.0 International",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100460",
+        "requires_attribution": "true",
+    },
+    {
+        "filename": "incompetech_meatball_parade.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Meatball%20Parade.mp3",
+        "title": "Meatball Parade",
+        "artist": "Kevin MacLeod",
+        "mood": "viral_goofy_upbeat",
+        "license": "Creative Commons Attribution 4.0 International",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500020",
+        "requires_attribution": "true",
+    },
+    {
+        "filename": "incompetech_the_builder.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/The%20Builder.mp3",
+        "title": "The Builder",
+        "artist": "Kevin MacLeod",
+        "mood": "viral_rhythmic_focus",
+        "license": "Creative Commons Attribution 4.0 International",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400016",
+        "requires_attribution": "true",
+    },
+    {
+        "filename": "incompetech_run_amok.mp3",
+        "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Run%20Amok.mp3",
+        "title": "Run Amok",
+        "artist": "Kevin MacLeod",
+        "mood": "viral_fast_tempo",
+        "license": "Creative Commons Attribution 4.0 International",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400024",
         "requires_attribution": "true",
     },
 ]
@@ -267,12 +322,12 @@ class FreeMusicArchiveProvider(MusicProvider):
         pool_path = Path(target_dir).resolve()
         pool_path.mkdir(parents=True, exist_ok=True)
 
-        existing_mp3s = list(pool_path.glob("*.mp3"))
-        if len(existing_mp3s) >= min_tracks and not force_refresh:
+        verified_mp3s = list(pool_path.glob("incompetech_*.mp3")) + list(pool_path.glob("fma_*.mp3"))
+        if len(verified_mp3s) >= min_tracks and not force_refresh:
             logger.info(
-                f"[FreeMusicArchive] Music pool already has {len(existing_mp3s)} tracks at {pool_path}."
+                f"[FreeMusicArchive] Music pool already has {len(verified_mp3s)} verified viral tracks at {pool_path}."
             )
-            return [{"filename": f.name, "local_path": str(f)} for f in existing_mp3s]
+            return [{"filename": f.name, "local_path": str(f)} for f in verified_mp3s]
 
         logger.info(f"[FreeMusicArchive] Populating music pool to {pool_path}...")
         candidate_tracks: list[dict] = []

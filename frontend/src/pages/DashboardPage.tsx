@@ -130,11 +130,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          <div className="yt-card-right">
+          <div className="yt-card-right" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span className="yt-connected-badge">
               <CheckCircleIcon size={13} color="#10b981" />
               YouTube Connected
             </span>
+
+            <button
+              className="btn btn-secondary"
+              onClick={handleConnect}
+              disabled={isConnecting}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '13px',
+                fontWeight: 500,
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+              title="Refresh or reconnect your YouTube channel permissions"
+            >
+              <YouTubeRedTileIcon size={14} />
+              <span>{isConnecting ? 'Connecting...' : 'Reconnect Channel'}</span>
+            </button>
 
             <button
               className="btn btn-secondary yt-sync-btn"

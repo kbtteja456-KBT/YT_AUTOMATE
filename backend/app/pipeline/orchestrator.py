@@ -99,12 +99,13 @@ class PipelineOrchestrator:
         publish_immediately: bool,
         slot_index: Optional[int],
         dry_run: bool,
-        target_duration_sec: Optional[float] = None
+        target_duration_sec: Optional[float] = None,
+        content_format: Optional[str] = "auto"
     ) -> dict[str, Any]:
         """Execute stages 2 through 13 for a given topic."""
         # 2. RESEARCH STAGE
         current_stage = "RESEARCHING"
-        research_raw = await self.research.conduct_research(topic, niche)
+        research_raw = await self.research.conduct_research(topic, niche, content_format=content_format)
         research_verified = await self.fact_check.verify_and_prune(research_raw)
 
         # 3. HOOK & SCRIPT STAGE
@@ -201,6 +202,12 @@ class PipelineOrchestrator:
         video_title = title_data["title"]
         video_tags = title_data["tags"]
         video_hashtags = title_data["hashtags"]
+
+        # Ensure published YouTube Shorts title always contains #Shorts and viral hashtags
+        import re
+        if not re.search(r"#shorts\b", video_title, re.IGNORECASE):
+            from backend.app.agents.title import format_viral_title
+            video_title = format_viral_title(video_title, video_hashtags)
 
         # Pass music_attribution so CC BY credit appears in the real YouTube description
         description_text = await self.description.generate_description(
@@ -521,7 +528,8 @@ class PipelineOrchestrator:
                     publish_immediately=publish_immediately,
                     slot_index=slot_index,
                     dry_run=dry_run,
-                    target_duration_sec=target_duration_sec
+                    target_duration_sec=target_duration_sec,
+                    content_format=content_format
                 )
 
             except (DuplicateUploadPreventedError, DuplicateKeyError) as dup_err:

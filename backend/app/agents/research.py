@@ -33,7 +33,12 @@ class ResearchAgent(BaseAgent):
 
     name = "ResearchAgent"
 
-    async def conduct_research(self, topic: str, niche: str = "Python Programming") -> ResearchReport:
+    async def conduct_research(
+        self,
+        topic: str,
+        niche: str = "Python Programming",
+        content_format: Optional[str] = None
+    ) -> ResearchReport:
         """Construct research report packaging code snippet, options, and explanation."""
         lang_profile = detect_language_from_niche(niche)
         if lang_profile.slug in ("c", "cpp"):
@@ -46,7 +51,7 @@ class ResearchAgent(BaseAgent):
             fallback_pool = PYTHON_QUIZ_POOL
 
         lang_name = lang_profile.display_name
-        self.log(f"Structuring {lang_name} quiz research for: '{topic}'...")
+        self.log(f"Structuring {lang_name} quiz research for: '{topic}' (format: {content_format or 'auto'})...")
 
         # 1. Attempt to pull candidate from content_ideas MongoDB collection
         quiz_data: Optional[dict[str, Any]] = None
@@ -55,7 +60,7 @@ class ResearchAgent(BaseAgent):
             db = SyncMongoDB.get_db()
             doc = db.content_ideas.find_one({"topic": topic}, sort=[("created_at", -1)])
             if doc:
-                if doc.get("content_format") == "documentary":
+                if doc.get("content_format") == "documentary" and content_format not in ("quiz_card", "code_quiz"):
                     key_points = doc.get("key_points") or []
                     items = [
                         ResearchItem(
@@ -83,7 +88,7 @@ class ResearchAgent(BaseAgent):
                         language="tech_documentary",
                         visual_keywords=doc.get("visual_keywords", [])
                     )
-                elif doc.get("content_format") == "quote_card":
+                elif doc.get("content_format") == "quote_card" and content_format not in ("quiz_card", "code_quiz"):
                     return ResearchReport(
                         topic=topic,
                         niche=niche,
@@ -103,9 +108,16 @@ class ResearchAgent(BaseAgent):
         # Check if niche or topic resolves to documentary archetype
         from backend.app.core.language_detector import detect_content_archetype
         from backend.app.agents.idea import DOCUMENTARY_POOL
-        archetype_info = detect_content_archetype(topic)
-        if archetype_info.archetype != "documentary_cinematic":
+        if content_format in ("quiz_card", "code_quiz") or detect_content_archetype(niche).archetype == "code_quiz":
             archetype_info = detect_content_archetype(niche)
+        elif content_format == "quote_card" or detect_content_archetype(niche).archetype == "quote_card":
+            archetype_info = detect_content_archetype(niche)
+        elif content_format == "trivia_quiz" or detect_content_archetype(niche).archetype == "trivia_quiz":
+            archetype_info = detect_content_archetype(niche)
+        else:
+            archetype_info = detect_content_archetype(topic)
+            if archetype_info.archetype != "documentary_cinematic":
+                archetype_info = detect_content_archetype(niche)
 
         if archetype_info.archetype == "documentary_cinematic":
             doc_item = next((d for d in DOCUMENTARY_POOL if d["topic"] == topic or d["concept_tag"] in topic.lower()), None)

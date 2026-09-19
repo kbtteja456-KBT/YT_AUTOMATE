@@ -255,6 +255,48 @@ class YouTubeClientProvider(YouTubeProvider):
                 "comments": "NOT AVAILABLE"
             }
 
+    async def update_video_metadata(
+        self,
+        youtube_video_id: str,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        category_id: str = "28",
+    ) -> dict[str, Any]:
+        """Update existing YouTube video's title, description, and tags with sanitization."""
+        self.verify_zero_cost_compliance()
+        try:
+            service = self._get_service()
+            req = service.videos().list(part="snippet", id=youtube_video_id)
+            res = req.execute()
+            items = res.get("items", [])
+            if not items:
+                raise YouTubeAPIError(f"Video {youtube_video_id} not found on YouTube.")
+
+            snippet = items[0]["snippet"]
+            if title:
+                snippet["title"] = self.sanitize_youtube_text(title, max_length=100)
+            if description:
+                snippet["description"] = self.sanitize_youtube_text(description, max_length=5000)
+            if tags is not None:
+                snippet["tags"] = [self.sanitize_youtube_text(t, max_length=30) for t in tags if t]
+            if category_id:
+                snippet["categoryId"] = category_id
+
+            update_req = service.videos().update(
+                part="snippet",
+                body={
+                    "id": youtube_video_id,
+                    "snippet": snippet,
+                }
+            )
+            update_res = update_req.execute()
+            logger.info(f"Updated YouTube video {youtube_video_id} metadata successfully: '{snippet.get('title')}'")
+            return update_res
+        except Exception as e:
+            logger.error(f"Failed to update YouTube video {youtube_video_id}: {e}")
+            raise YouTubeAPIError(f"Failed to update video metadata: {e}")
+
     async def check_health(self) -> ProviderHealth:
         """Verify YouTube API configuration."""
         if not self.credentials:

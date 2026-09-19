@@ -42,9 +42,9 @@ class VoiceAgent(BaseAgent):
         pool_dir = Path(self.storage.get_path("audio", "music_pool"))
         pool_dir.mkdir(parents=True, exist_ok=True)
 
-        # Lazy-populate the pool using the real FreeMusicArchiveProvider
-        pool_mp3s = list(pool_dir.glob("*.mp3"))
-        if len(pool_mp3s) < 5:
+        # Lazy-populate the pool using the real FreeMusicArchiveProvider with viral tracks
+        viral_mp3s = list(pool_dir.glob("incompetech_*.mp3")) + list(pool_dir.glob("fma_*.mp3"))
+        if len(viral_mp3s) < 5:
             try:
                 from backend.app.providers.music.music_archive import FreeMusicArchiveProvider
                 from backend.app.config import settings as cfg
@@ -52,11 +52,16 @@ class VoiceAgent(BaseAgent):
                 fma_key = getattr(cfg, "fma_api_key", "").strip() if hasattr(cfg, "fma_api_key") else ""
                 provider = FreeMusicArchiveProvider(fma_api_key=fma_key)
                 await provider.populate_pool(pool_dir, min_tracks=5)
-                pool_mp3s = list(pool_dir.glob("*.mp3"))
+                viral_mp3s = list(pool_dir.glob("incompetech_*.mp3")) + list(pool_dir.glob("fma_*.mp3"))
             except Exception as e:
                 self.log(f"Music pool population note: {e}", "WARNING")
 
-        candidate_tracks = [str(f) for f in sorted(pool_dir.glob("*.mp3"))]
+        # Prioritize iconic viral tracks over legacy sample previews
+        if viral_mp3s:
+            candidate_tracks = [str(f) for f in sorted(viral_mp3s)]
+        else:
+            candidate_tracks = [str(f) for f in sorted(pool_dir.glob("*.mp3"))]
+
         if not candidate_tracks:
             # Absolute fallback: single legacy bg_music.mp3 if it exists
             existing_bg = Path(self.storage.get_path("audio", "bg_music.mp3"))
