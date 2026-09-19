@@ -168,14 +168,35 @@ async def execute_slot_pipeline(
         if ws_obj:
             workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Quiz #Shorts"
         idemp_prefix = f"autopilot_{date_str}_slot{slot_index}"
-    custom_prompt = ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt") if ws_obj else None
-    pref_format = (
-        ws_obj.get("content_template")
-        or ws_obj.get("preferred_format")
-        or ws_obj.get("settings", {}).get("content_template")
-        or ws_obj.get("settings", {}).get("preferred_format")
-        or "auto"
-    ) if ws_obj else "auto"
+
+    is_owner = (not workspace_id) or (ws_obj and ws_obj.get("is_legacy_default") is True)
+    if is_owner:
+        workspace_niche = "Python Quiz #Shorts"
+        pref_format = "quiz_card"
+        custom_prompt = None
+    else:
+        custom_prompt = ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt") if ws_obj else None
+        saved_pref = (
+            ws_obj.get("preferred_format")
+            or ws_obj.get("settings", {}).get("preferred_format")
+        ) if ws_obj else None
+
+        if saved_pref and saved_pref != "auto":
+            pref_format = saved_pref
+        else:
+            from backend.app.core.language_detector import detect_content_archetype
+            eff_content = custom_prompt or workspace_niche
+            arch_info = detect_content_archetype(eff_content)
+            if arch_info.archetype == "documentary_cinematic":
+                pref_format = "documentary"
+            elif arch_info.archetype == "quote_card":
+                pref_format = "quote_card"
+            elif arch_info.archetype == "trivia_quiz":
+                pref_format = "trivia_quiz"
+            elif arch_info.archetype == "code_quiz":
+                pref_format = "quiz_card"
+            else:
+                pref_format = "documentary"
 
     idempotency_key = compute_content_hash(idemp_prefix)
     existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})

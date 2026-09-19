@@ -131,3 +131,79 @@ def test_java_programming_niche_detection():
     assert lang_prof.slug == "java"
     assert lang_prof.header_badge == "JAVA QUIZ"
 
+
+def test_owner_pipeline_strictly_python_quiz():
+    """Verify that the Platform Owner pipeline strictly remains Python Quiz Cards."""
+    from backend.app.core.language_detector import detect_content_archetype
+    # Owner default / empty niche
+    owner_arch = detect_content_archetype(None)
+    assert owner_arch.archetype == "code_quiz"
+    assert owner_arch.lang_profile.slug == "python"
+    assert owner_arch.header_title == "PYTHON QUIZ"
+    assert "#python" in owner_arch.hashtags
+
+    # Owner Python niche
+    owner_py = detect_content_archetype("Python Programming")
+    assert owner_py.archetype == "code_quiz"
+    assert owner_py.lang_profile.slug == "python"
+
+
+def test_tenant_telugu_custom_prompt_resolution():
+    """Verify that tenant custom prompt in Telugu automatically resolves to documentary video with Telugu voice."""
+    from backend.app.core.language_detector import detect_content_archetype, detect_spoken_language
+    prompt = "daily information of current news, in telugu audio"
+
+    # Spoken language auto-detection
+    spoken = detect_spoken_language(prompt)
+    assert spoken.code == "te"
+    assert spoken.name == "Telugu"
+    assert spoken.default_voice_id == "te-IN-MohanNeural"
+    assert spoken.font_name == "Nirmala UI"
+
+    # Archetype resolution: MUST NOT be code_quiz! It must be documentary_cinematic (real video)
+    arch = detect_content_archetype(prompt)
+    assert arch.archetype == "documentary_cinematic"
+    assert arch.spoken_lang.code == "te"
+
+
+def test_tenant_hindi_space_facts_resolution():
+    """Verify that tenant custom prompt in Hindi automatically resolves to documentary video with Hindi voice."""
+    from backend.app.core.language_detector import detect_content_archetype, detect_spoken_language
+    prompt = "amazing space facts in hindi"
+
+    spoken = detect_spoken_language(prompt)
+    assert spoken.code == "hi"
+    assert spoken.name == "Hindi"
+    assert spoken.default_voice_id == "hi-IN-MadhurNeural"
+
+    arch = detect_content_archetype(prompt)
+    assert arch.archetype == "documentary_cinematic"
+    assert arch.spoken_lang.code == "hi"
+
+
+def test_caption_agent_font_adaptation():
+    """Verify ASS subtitles dynamically switch to Nirmala UI for Indic scripts and Impact for English."""
+    from backend.app.agents.caption import CaptionAgent
+    from backend.app.models.video import CaptionSegment
+    from unittest.mock import MagicMock
+    import tempfile
+
+    agent = CaptionAgent(stt_provider=MagicMock(), storage_provider=MagicMock())
+
+    # Indic (Telugu) text
+    with tempfile.NamedTemporaryFile(suffix=".ass", delete=False, mode="w", encoding="utf-8") as tf:
+        telugu_path = tf.name
+    seg_te = [CaptionSegment(text="ఈరోజు ముఖ్య తాజా వార్తలు", start=0.0, end=3.0)]
+    out_te = agent.build_ass_subtitles(seg_te, telugu_path)
+    content_te = open(out_te, encoding="utf-8").read()
+    assert "Nirmala UI" in content_te
+
+    # English text
+    with tempfile.NamedTemporaryFile(suffix=".ass", delete=False, mode="w", encoding="utf-8") as tf:
+        en_path = tf.name
+    seg_en = [CaptionSegment(text="Today's top tech news", start=0.0, end=3.0)]
+    out_en = agent.build_ass_subtitles(seg_en, en_path)
+    content_en = open(out_en, encoding="utf-8").read()
+    assert "Impact" in content_en
+
+

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from backend.app.agents.base import BaseAgent
 from backend.app.core.security import compute_content_hash
-from backend.app.core.language_detector import detect_language_from_niche, detect_content_archetype
+from backend.app.core.language_detector import detect_language_from_niche, detect_content_archetype, detect_spoken_language
 
 
 C_QUIZ_POOL = [
@@ -784,11 +784,17 @@ class IdeaAgent(BaseAgent):
         # 3. DOCUMENTARY / TECH NEWS ARCHETYPE (Universal Topics)
         # -------------------------------------------------------------
         elif arch == "documentary_cinematic":
-            self.log(f"Generating Documentary/News Short concept for prompt: '{effective_niche}'...")
+            spoken_lang = archetype_info.spoken_lang or detect_spoken_language(effective_niche)
+            self.log(f"Generating Documentary/News Short concept for prompt: '{effective_niche}' (language: {spoken_lang.name})...")
+            lang_clause = ""
+            if spoken_lang and spoken_lang.code != "en":
+                lang_clause = f"\nLANGUAGE REQUIREMENT: The user requested {spoken_lang.name} narration. Make sure the topic and hook are suitable for {spoken_lang.name} ({spoken_lang.native_name}) audience.\n"
+
             prompt = (
                 f"Generate 3 distinct, viral, high-retention documentary or informational video concepts based on this user prompt/niche:\n"
                 f"Prompt: '{effective_niche}'.\n"
                 f"Target audience: curious viewers on YouTube Shorts.\n"
+                f"{lang_clause}"
                 f"CRITICAL: DO NOT use any of these recently covered concepts: [{excluded_tags_str}].\n"
                 f"RULES:\n"
                 f"1. 'topic': Viral, clickable Short title ending with #Shorts (e.g. 'How AI Agents Are Taking Over Coding #Shorts').\n"

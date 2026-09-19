@@ -38,6 +38,11 @@ class CaptionAgent(BaseAgent):
     ) -> str:
         """Generate ASS subtitle file with highlighted active word and safe margins."""
         profile = style_profile or StyleProfile()
+        full_text = " ".join(seg.text for seg in segments)
+        has_non_latin = any(ord(c) > 0x0590 for c in full_text)
+        font_name = "Nirmala UI" if has_non_latin else "Impact"
+        font_size_default = 56 if has_non_latin else 64
+        font_size_highlight = 60 if has_non_latin else 68
 
         ass_header = f"""[Script Info]
 Title: YouTube Shorts Synced Captions
@@ -51,8 +56,8 @@ MarginV: 420
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Impact,64,&H00FFFFFF,&H0000FFA3,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,5,2,2,40,40,420,1
-Style: Highlight,Impact,68,&H0000FFA3,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,105,105,0,0,1,6,3,2,40,40,420,1
+Style: Default,{font_name},{font_size_default},&H00FFFFFF,&H0000FFA3,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,5,2,2,40,40,420,1
+Style: Highlight,{font_name},{font_size_highlight},&H0000FFA3,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,105,105,0,0,1,6,3,2,40,40,420,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

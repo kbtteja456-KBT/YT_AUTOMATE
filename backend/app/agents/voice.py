@@ -185,13 +185,15 @@ class VoiceAgent(BaseAgent):
         self.last_music_attribution = None
         self.last_music_record = None
         v_cfg = voice_config or VoiceConfig()
-        self.log(f"Synthesizing voiceover for job {job_id} using voice '{v_cfg.voice_id}'...")
+        target_voice_id = getattr(script, "spoken_voice_id", None) or v_cfg.voice_id
+        spoken_lang = getattr(script, "spoken_language", "en")
+        self.log(f"Synthesizing voiceover for job {job_id} using voice '{target_voice_id}' (language: {spoken_lang})...")
         output_file = self.storage.get_path("audio", f"voice_{job_id}.mp3")
 
         audio_path = await self.tts.synthesize_speech(
             text=script.full_narration,
             output_filepath=output_file,
-            voice_id=v_cfg.voice_id,
+            voice_id=target_voice_id,
             rate=v_cfg.rate,
             pitch=v_cfg.pitch,
             volume=v_cfg.volume,

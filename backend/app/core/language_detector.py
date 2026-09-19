@@ -120,6 +120,91 @@ def detect_language_from_niche(niche: Optional[str]) -> LanguageProfile:
     return LANG_PROFILES["python"]
 
 
+
+class SpokenLanguageProfile(NamedTuple):
+    code: str                # "te", "hi", "ta", "kn", "ml", "bn", "mr", "gu", "es", "fr", "de", "ja", "en"
+    name: str                # "Telugu", "Hindi", "Tamil", etc.
+    native_name: str         # "తెలుగు", "हिन्दी", "தமிழ்", etc.
+    default_voice_id: str    # "te-IN-MohanNeural", "hi-IN-MadhurNeural", etc.
+    font_name: str           # "Nirmala UI" or "Impact"
+
+
+SPOKEN_LANG_PROFILES: dict[str, SpokenLanguageProfile] = {
+    "te": SpokenLanguageProfile("te", "Telugu", "తెలుగు", "te-IN-MohanNeural", "Nirmala UI"),
+    "hi": SpokenLanguageProfile("hi", "Hindi", "हिन्दी", "hi-IN-MadhurNeural", "Nirmala UI"),
+    "ta": SpokenLanguageProfile("ta", "Tamil", "தமிழ்", "ta-IN-ValluvarNeural", "Nirmala UI"),
+    "kn": SpokenLanguageProfile("kn", "Kannada", "ಕನ್ನಡ", "kn-IN-GaganNeural", "Nirmala UI"),
+    "ml": SpokenLanguageProfile("ml", "Malayalam", "മലയാളം", "ml-IN-MidhunNeural", "Nirmala UI"),
+    "bn": SpokenLanguageProfile("bn", "Bengali", "বাংলা", "bn-IN-BashkarNeural", "Nirmala UI"),
+    "mr": SpokenLanguageProfile("mr", "Marathi", "मराठी", "mr-IN-ManoharNeural", "Nirmala UI"),
+    "gu": SpokenLanguageProfile("gu", "Gujarati", "ગુજરાતી", "gu-IN-NiranjanNeural", "Nirmala UI"),
+    "ur": SpokenLanguageProfile("ur", "Urdu", "اردو", "ur-IN-SalmanNeural", "Segoe UI"),
+    "es": SpokenLanguageProfile("es", "Spanish", "Español", "es-ES-AlvaroNeural", "Impact"),
+    "fr": SpokenLanguageProfile("fr", "French", "Français", "fr-FR-HenriNeural", "Impact"),
+    "de": SpokenLanguageProfile("de", "German", "Deutsch", "de-DE-ConradNeural", "Impact"),
+    "ja": SpokenLanguageProfile("ja", "Japanese", "日本語", "ja-JP-KeitaNeural", "MS Gothic"),
+    "en": SpokenLanguageProfile("en", "English", "English", "en-US-ChristopherNeural", "Impact"),
+}
+
+
+def detect_spoken_language(text: Optional[str]) -> SpokenLanguageProfile:
+    """Automatically detect target spoken language and neural TTS voice from content/prompt.
+    
+    Checks native script Unicode blocks and explicit language keywords. Defaults to English.
+    """
+    if not text:
+        return SPOKEN_LANG_PROFILES["en"]
+
+    # 1. Check Native Script Unicode Blocks
+    if re.search(r"[\u0C00-\u0C7F]", text):
+        return SPOKEN_LANG_PROFILES["te"]
+    if re.search(r"[\u0B80-\u0BFF]", text):
+        return SPOKEN_LANG_PROFILES["ta"]
+    if re.search(r"[\u0C80-\u0CFF]", text):
+        return SPOKEN_LANG_PROFILES["kn"]
+    if re.search(r"[\u0D00-\u0D7F]", text):
+        return SPOKEN_LANG_PROFILES["ml"]
+    if re.search(r"[\u0980-\u09FF]", text):
+        return SPOKEN_LANG_PROFILES["bn"]
+    if re.search(r"[\u0A80-\u0AFF]", text):
+        return SPOKEN_LANG_PROFILES["gu"]
+    if re.search(r"[\u0900-\u097F]", text):
+        return SPOKEN_LANG_PROFILES["hi"]
+    if re.search(r"[\u3040-\u30FF\u4E00-\u9FFF]", text):
+        return SPOKEN_LANG_PROFILES["ja"]
+
+    # 2. Check Explicit Keyword Mentions (e.g., 'in telugu audio', 'telugu news', 'hindi facts')
+    t_lower = text.strip().lower()
+    if re.search(r"\b(?:telugu|telugulo)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["te"]
+    if re.search(r"\b(?:hindi|hindimein)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["hi"]
+    if re.search(r"\b(?:tamil|tamizh)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["ta"]
+    if re.search(r"\b(?:kannada)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["kn"]
+    if re.search(r"\b(?:malayalam)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["ml"]
+    if re.search(r"\b(?:bengali|bangla)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["bn"]
+    if re.search(r"\b(?:marathi)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["mr"]
+    if re.search(r"\b(?:gujarati)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["gu"]
+    if re.search(r"\b(?:urdu)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["ur"]
+    if re.search(r"\b(?:spanish|espanol|español)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["es"]
+    if re.search(r"\b(?:french|francais|français)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["fr"]
+    if re.search(r"\b(?:german|deutsch)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["de"]
+    if re.search(r"\b(?:japanese|nihongo)\b", t_lower):
+        return SPOKEN_LANG_PROFILES["ja"]
+
+    return SPOKEN_LANG_PROFILES["en"]
+
+
 class ContentArchetype(NamedTuple):
     archetype: str               # "code_quiz", "trivia_quiz", "quote_card"
     category: str                # "coding", "trivia", "quotes"
@@ -127,6 +212,7 @@ class ContentArchetype(NamedTuple):
     default_hashtag: str         # "#shorts", "#trivia", "#quotes", etc.
     hashtags: list[str]
     lang_profile: Optional[LanguageProfile] = None
+    spoken_lang: Optional[SpokenLanguageProfile] = None
 
 
 def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
@@ -134,6 +220,8 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
     
     Owner and standard python niches always resolve to 'code_quiz' with Python profile.
     """
+    spoken_lang = detect_spoken_language(niche)
+
     if not niche:
         py_prof = LANG_PROFILES["python"]
         return ContentArchetype(
@@ -142,7 +230,8 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             header_title=py_prof.header_badge,
             default_hashtag=py_prof.default_hashtag,
             hashtags=["#python", "#coding", "#programming", "#shorts", "#pythonquiz"],
-            lang_profile=py_prof
+            lang_profile=py_prof,
+            spoken_lang=spoken_lang
         )
 
     n_lower = re.sub(r"\s+", " ", niche.strip().lower())
@@ -156,7 +245,8 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             header_title=title_badge,
             default_hashtag="#quotes",
             hashtags=["#quotes", "#motivation", "#wisdom", "#inspiration", "#shorts"],
-            lang_profile=None
+            lang_profile=None,
+            spoken_lang=spoken_lang
         )
 
     # 2. Explicit Code Quiz (must be a quiz, challenge, puzzle, or output question)
@@ -182,7 +272,8 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             header_title=lang_prof.header_badge,
             default_hashtag=lang_prof.default_hashtag,
             hashtags=[lang_prof.default_hashtag, "#coding", "#programming", "#shorts", f"#{lang_prof.slug}quiz"],
-            lang_profile=lang_prof
+            lang_profile=lang_prof,
+            spoken_lang=spoken_lang
         )
 
     # 3. General Trivia / Riddles / GK / Non-Coding Quizzes
@@ -194,19 +285,21 @@ def detect_content_archetype(niche: Optional[str]) -> ContentArchetype:
             header_title=badge,
             default_hashtag="#trivia",
             hashtags=["#trivia", "#quiz", "#generalknowledge", "#riddles", "#shorts", "#brainteaser"],
-            lang_profile=None
+            lang_profile=None,
+            spoken_lang=spoken_lang
         )
 
-    # 4. Universal Documentary & News (Tech News, AI Breakthroughs, Science, History, Informational)
+    # 4. Universal Documentary & News (Tech News, AI Breakthroughs, Science, History, Informational, Daily Info)
     # Uses real 1080x1920 stock video footage (Pexels/Pixabay), cinematic motion, voiceover, and captions
-    is_news = any(k in n_lower for k in ["news", "update", "latest", "informational", "discovery", "breakthrough"])
-    topic_header = "TECH NEWS" if is_news else "TECH INSIGHTS"
+    is_news = any(k in n_lower for k in ["news", "update", "latest", "informational", "discovery", "breakthrough", "current", "daily info"])
+    topic_header = "DAILY NEWS" if is_news else "FACTS & INSIGHTS"
     return ContentArchetype(
         archetype="documentary_cinematic",
         category="documentary",
         header_title=topic_header,
-        default_hashtag="#technology",
-        hashtags=["#shorts", "#tech", "#technology", "#innovation", "#future"],
-        lang_profile=None
+        default_hashtag="#shorts",
+        hashtags=["#shorts", "#news", "#facts", "#dailyinfo", "#trending"],
+        lang_profile=None,
+        spoken_lang=spoken_lang
     )
 

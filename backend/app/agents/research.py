@@ -106,13 +106,28 @@ class ResearchAgent(BaseAgent):
             pass
 
         # Check if niche or topic resolves to documentary archetype
-        from backend.app.core.language_detector import detect_content_archetype
+        from backend.app.core.language_detector import detect_content_archetype, ContentArchetype
         from backend.app.agents.idea import DOCUMENTARY_POOL
-        if content_format in ("quiz_card", "code_quiz") or detect_content_archetype(niche).archetype == "code_quiz":
+        if content_format in ("documentary", "documentary_cinematic"):
+            archetype_info = ContentArchetype(
+                archetype="documentary_cinematic",
+                category="documentary",
+                header_title="DAILY NEWS",
+                default_hashtag="#shorts",
+                hashtags=["#shorts", "#news", "#facts"],
+                lang_profile=None
+            )
+        elif content_format in ("quiz_card", "code_quiz"):
             archetype_info = detect_content_archetype(niche)
-        elif content_format == "quote_card" or detect_content_archetype(niche).archetype == "quote_card":
+        elif content_format == "quote_card":
             archetype_info = detect_content_archetype(niche)
-        elif content_format == "trivia_quiz" or detect_content_archetype(niche).archetype == "trivia_quiz":
+        elif content_format == "trivia_quiz":
+            archetype_info = detect_content_archetype(niche)
+        elif detect_content_archetype(niche).archetype == "code_quiz":
+            archetype_info = detect_content_archetype(niche)
+        elif detect_content_archetype(niche).archetype == "quote_card":
+            archetype_info = detect_content_archetype(niche)
+        elif detect_content_archetype(niche).archetype == "trivia_quiz":
             archetype_info = detect_content_archetype(niche)
         else:
             archetype_info = detect_content_archetype(topic)

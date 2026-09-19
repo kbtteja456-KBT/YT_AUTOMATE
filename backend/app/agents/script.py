@@ -3,7 +3,7 @@
 from typing import Any
 from backend.app.agents.base import BaseAgent
 from backend.app.models.video import Script, ResearchReport
-from backend.app.core.language_detector import detect_language_from_niche
+from backend.app.core.language_detector import detect_language_from_niche, detect_spoken_language
 
 
 class ScriptAgent(BaseAgent):
@@ -26,8 +26,9 @@ class ScriptAgent(BaseAgent):
 
         lang_profile = detect_language_from_niche(research.niche)
         lang_name = lang_profile.display_name
+        spoken_lang = detect_spoken_language(f"{topic} {hook} {research.niche}")
 
-        self.log(f"Scripting narration for '{topic}' (format: {c_format}, {eff_duration}s)...")
+        self.log(f"Scripting narration for '{topic}' (format: {c_format}, {eff_duration}s, language: {spoken_lang.name})...")
 
         # -------------------------------------------------------------
         # 1. QUOTE CARD FORMAT
@@ -179,15 +180,24 @@ class ScriptAgent(BaseAgent):
             facts_list = [i.fact for i in research.items] if research.items else [research.key_takeaway or topic]
             facts_str = "\n".join(f"- {f}" for f in facts_list)
 
+            lang_instr = ""
+            if spoken_lang and spoken_lang.code != "en":
+                lang_instr = (
+                    f"\nCRITICAL LANGUAGE INSTRUCTION: Spoken audio must be in {spoken_lang.name} ({spoken_lang.native_name}).\n"
+                    f"You MUST write 'hook', 'problem', 'value', 'payoff', and 'cta' strictly in authentic, natural {spoken_lang.name}.\n"
+                    f"Use correct {spoken_lang.name} script/grammar so that Microsoft Edge Neural TTS reads it with natural pronunciation.\n"
+                )
+
             prompt = (
                 f"Topic: '{topic}'.\n"
                 f"Opening Hook: '{hook_hint}'.\n"
                 f"Core Facts/Points:\n{facts_str}\n\n"
                 f"Target duration: ~{eff_duration}s (~{target_word_count} spoken words).\n"
-                f"Tone: Fast-paced, punchy, engaging science & tech journalism with zero filler.\n"
+                f"Tone: Fast-paced, punchy, engaging journalism with zero filler.\n"
+                f"{lang_instr}"
                 f"Write high-retention narration split into 5 sections:\n"
                 f"1. 'hook': 0-3s bold opener that immediately grabs attention.\n"
-                f"2. 'problem': 3-10s setup introducing the breakthrough or news event.\n"
+                f"2. 'problem': 3-10s setup introducing the event or topic.\n"
                 f"3. 'value': 10-25s the core details and why this matters.\n"
                 f"4. 'payoff': 25-38s the surprising insight or future implication.\n"
                 f"5. 'cta': 38-45s punchy call-to-action asking viewers to comment and subscribe."
@@ -206,18 +216,37 @@ class ScriptAgent(BaseAgent):
             try:
                 resp = await self.ai.generate_structured(prompt=prompt, response_schema=schema)
                 h = resp.get("hook", hook_hint).strip()
-                p = resp.get("problem", "The tech world just reached a massive milestone.").strip()
+                p = resp.get("problem", "The world just reached a massive milestone.").strip()
                 v = resp.get("value", research.key_takeaway or facts_list[0]).strip()
-                po = resp.get("payoff", "This fundamentally shifts how we interact with technology.").strip()
-                c = resp.get("cta", "What do you think about this breakthrough? Let me know in the comments and subscribe!").strip()
+                po = resp.get("payoff", "This fundamentally shifts what is possible.").strip()
+                c = resp.get("cta", "What do you think about this? Let me know in the comments and subscribe!").strip()
             except Exception:
                 import re
                 clean_t = re.sub(r'#\w+', '', topic).strip()
-                h = hook_hint or f"Here is what just happened with {clean_t}."
-                p = f"Researchers and builders just reached a massive milestone in {clean_t}."
-                v = research.key_takeaway or (facts_list[0] if facts_list else clean_t)
-                po = "This fundamentally accelerates real-world capability and changes what is possible this decade."
-                c = "What are your thoughts on this? Comment below and subscribe for more updates!"
+                if spoken_lang and spoken_lang.code == "te":
+                    h = f"ఈరోజు ముఖ్య సమాచారం: {clean_t}."
+                    p = f"{clean_t} గురించి మీరు తెలుసుకోవలసిన తాజా వివరాలు ఇక్కడ ఉన్నాయి."
+                    v = research.key_takeaway or (facts_list[0] if facts_list else clean_t)
+                    po = "ఈ సమాచారం రోజువారీ జీవితంలో ఎంతో ఉపయోగపడుతుంది."
+                    c = "మరిన్ని తాజా అప్‌డేట్స్ కోసం ఇప్పుడే సబ్‌స్క్రైబ్ చేసుకోండి!"
+                elif spoken_lang and spoken_lang.code == "hi":
+                    h = f"आज की ताज़ा जानकारी: {clean_t}."
+                    p = f"{clean_t} के बारे में आपको ये बातें ज़रूर जाननी चाहिए."
+                    v = research.key_takeaway or (facts_list[0] if facts_list else clean_t)
+                    po = "यह जानकारी आपके लिए बहुत महत्वपूर्ण साबित होगी."
+                    c = "और ऐसी जानकारियों के लिए अभी सब्सक्राइब करें!"
+                elif spoken_lang and spoken_lang.code == "ta":
+                    h = f"இன்றைய முக்கிய தகவல்: {clean_t}."
+                    p = f"{clean_t} பற்றி நீங்கள் தெரிந்து கொள்ள வேண்டிய முக்கிய தகவல்கள்."
+                    v = research.key_takeaway or (facts_list[0] if facts_list else clean_t)
+                    po = "இந்த தகவல் உங்களுக்கு மிகவும் பயனுள்ளதாக இருக்கும்."
+                    c = "மேலும் பல தகவல்களுக்கு உடனே சப்ஸ்கிரைப் செய்யுங்கள்!"
+                else:
+                    h = hook_hint or f"Here is what you need to know about {clean_t}."
+                    p = f"Important new developments are taking shape in {clean_t}."
+                    v = research.key_takeaway or (facts_list[0] if facts_list else clean_t)
+                    po = "This accelerates real-world capability and changes what is possible."
+                    c = "What are your thoughts on this? Comment below and subscribe for more updates!"
 
             full_narration = f"{h} {p} {v} {po} {c}"
             return Script(
@@ -231,17 +260,24 @@ class ScriptAgent(BaseAgent):
                 target_duration_sec=eff_duration,
                 word_count=len(full_narration.split()),
                 content_format="documentary",
-                concept_tag=research.concept_tag or "tech_news",
-                language="tech_documentary",
-                visual_keywords=getattr(research, "visual_keywords", [])
+                concept_tag=research.concept_tag or "daily_news",
+                language=spoken_lang.code if spoken_lang else "en",
+                visual_keywords=getattr(research, "visual_keywords", []),
+                spoken_language=spoken_lang.code if spoken_lang else "en",
+                spoken_voice_id=spoken_lang.default_voice_id if spoken_lang else "en-US-ChristopherNeural"
             )
 
         # Standard general format fallback
         target_word_count = int(target_duration_sec * 2.8)
+        lang_instr = ""
+        if spoken_lang and spoken_lang.code != "en":
+            lang_instr = f"\nCRITICAL: Narration MUST be written in {spoken_lang.name} ({spoken_lang.native_name}).\n"
+
         prompt = (
             f"Topic: '{topic}'.\n"
             f"Selected Hook (0-3s): '{hook}'.\n"
             f"Verified Research Facts:\n{[i.fact for i in research.items]}\n\n"
+            f"{lang_instr}"
             f"Write a high-retention YouTube Shorts narration script targeting {target_duration_sec}s (~{target_word_count} words total)."
         )
         schema = {
@@ -272,5 +308,7 @@ class ScriptAgent(BaseAgent):
             full_narration=full,
             target_duration_sec=target_duration_sec,
             word_count=len(full.split()),
-            content_format="general"
+            content_format="general",
+            spoken_language=spoken_lang.code if spoken_lang else "en",
+            spoken_voice_id=spoken_lang.default_voice_id if spoken_lang else "en-US-ChristopherNeural"
         )

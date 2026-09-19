@@ -85,6 +85,8 @@ class Script(MongoBaseModel):
     quote_text: Optional[str] = None
     quote_author: Optional[str] = None
     visual_keywords: list[str] = Field(default_factory=list)
+    spoken_language: str = "en"
+    spoken_voice_id: Optional[str] = None
 
 
 class CaptionWord(MongoBaseModel):
