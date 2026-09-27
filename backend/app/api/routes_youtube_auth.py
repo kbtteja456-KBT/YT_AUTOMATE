@@ -1,5 +1,6 @@
 """Official Google OAuth 2.0 flow and YouTube channel management endpoints."""
 
+import os
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from fastapi.responses import RedirectResponse
 from typing import Any, Optional
@@ -122,7 +123,7 @@ async def handle_youtube_callback(
             logger.warning(f"MongoDB persistence note in OAuth callback: {dbe}")
 
         accept_header = request.headers.get("accept", "")
-        frontend_url = request.headers.get("origin") or "http://localhost:3000"
+        frontend_url = os.getenv("FRONTEND_URL") or request.headers.get("origin") or "http://localhost:3000"
         if "text/html" in accept_header:
             return RedirectResponse(url=f"{frontend_url}?youtube_connected=true")
 

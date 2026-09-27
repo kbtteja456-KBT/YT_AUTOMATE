@@ -1,5 +1,6 @@
 """Per-tenant YouTube OAuth 2.0 flow securely associating channels to specific workspaces."""
 
+import os
 import hmac
 import hashlib
 import time
@@ -149,7 +150,7 @@ async def handle_tenant_youtube_callback(
 
         accept_header = request.headers.get("accept", "")
         # If user opened directly in browser or redirect flow
-        frontend_url = request.headers.get("origin") or "http://localhost:3000"
+        frontend_url = os.getenv("FRONTEND_URL") or request.headers.get("origin") or "http://localhost:3000"
         if "text/html" in accept_header:
             return RedirectResponse(url=f"{frontend_url}?youtube_connected=true")
 
