@@ -31,12 +31,24 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  React.useEffect(() => {
+    const handleReset = () => setConnecting(false);
+    window.addEventListener('pageshow', handleReset);
+    window.addEventListener('focus', handleReset);
+    return () => {
+      window.removeEventListener('pageshow', handleReset);
+      window.removeEventListener('focus', handleReset);
+    };
+  }, []);
+
   const handleConnectChannel = async () => {
     setConnecting(true);
+    const timeout = setTimeout(() => setConnecting(false), 15000);
     try {
       const authUrl = await api.getConnectUrl();
       window.location.href = authUrl;
     } catch (err: any) {
+      clearTimeout(timeout);
       setStatusMsg(`Connection error: ${err.message || 'Could not initiate YouTube OAuth'}`);
       setConnecting(false);
     }

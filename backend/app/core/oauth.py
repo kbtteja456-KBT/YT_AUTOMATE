@@ -1,5 +1,4 @@
-"""Official Google OAuth 2.0 flow and credentials manager for YouTube Data API v3."""
-
+import os
 import httpx
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
@@ -28,8 +27,9 @@ class GoogleOAuthManager:
     @staticmethod
     def _sanitize_redirect_uri(ruri: Optional[str]) -> str:
         """Ensure redirect_uri complies with Google OAuth 2.0 policy."""
-        fallback = "http://localhost:8000/api/auth/youtube/callback"
-        if not ruri:
+        render_ext_url = os.getenv("RENDER_EXTERNAL_URL")
+        fallback = f"{render_ext_url.rstrip('/')}/api/auth/youtube/callback" if render_ext_url else "http://localhost:8000/api/auth/youtube/callback"
+        if not ruri or ("localhost" in ruri and render_ext_url):
             return fallback
         clean = ruri.strip()
         # Disallow non-localhost http schemas (e.g. http://YT/) which trigger Google OAuth Error 400

@@ -34,6 +34,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [isConnecting, setIsConnecting] = React.useState(false);
   const [syncNotice, setSyncNotice] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    const handleReset = () => setIsConnecting(false);
+    window.addEventListener('pageshow', handleReset);
+    window.addEventListener('focus', handleReset);
+    return () => {
+      window.removeEventListener('pageshow', handleReset);
+      window.removeEventListener('focus', handleReset);
+    };
+  }, []);
+
   const isConnected = Boolean(channelInfo?.is_connected && channelInfo?.channel);
   const channel = isConnected ? channelInfo!.channel : null;
   const channelName = channel?.title || '';
@@ -43,10 +53,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleConnect = async () => {
     setIsConnecting(true);
     setSyncNotice(null);
+    const timeout = setTimeout(() => setIsConnecting(false), 15000);
     try {
       const authUrl = await api.getConnectUrl();
       window.location.href = authUrl;
     } catch (err: any) {
+      clearTimeout(timeout);
       setSyncNotice(`Connection error: ${err.message || 'Could not initiate YouTube OAuth'}`);
       setIsConnecting(false);
     }

@@ -123,7 +123,11 @@ async def handle_youtube_callback(
             logger.warning(f"MongoDB persistence note in OAuth callback: {dbe}")
 
         accept_header = request.headers.get("accept", "")
-        frontend_url = os.getenv("FRONTEND_URL") or request.headers.get("origin") or "http://localhost:3000"
+        frontend_url = (
+            os.getenv("FRONTEND_URL")
+            or request.headers.get("origin")
+            or ("https://ytsb.vercel.app" if os.getenv("RENDER") else "http://localhost:3000")
+        )
         if "text/html" in accept_header:
             return RedirectResponse(url=f"{frontend_url}?youtube_connected=true")
 
