@@ -29,7 +29,7 @@ sys.path.insert(0, WORKSPACE_DIR)
 from backend.app.config import settings
 from backend.app.core.logging import logger
 from backend.app.core.db import SyncMongoDB
-from backend.app.core.cron_scheduler import is_slot_published_today
+from backend.app.core.cron_scheduler import is_slot_published_today, is_time_in_slot_window
 from backend.app.core.security import compute_content_hash
 from backend.app.models.job import JobState
 from backend.app.celery_app.tasks import _build_orchestrator, _get_authenticated_youtube_provider
@@ -439,33 +439,57 @@ async def main():
     tz = zoneinfo.ZoneInfo(settings.timezone)
     now_local = datetime.now(tz)
     today_str = now_local.strftime("%Y-%m-%d")
-    hour = now_local.hour
+    total_minutes = now_local.hour * 60 + now_local.minute
 
-    is_evening_window = (hour == 17 and now_local.minute >= 40) or hour >= 18
+    # Operational publishing windows:
+    # Morning Slot 1: 06:40 AM (400m) to 02:00 PM (840m) IST (Target: 07:00 AM IST)
+    # Evening Slot 2: 05:40 PM (1060m) to 11:59 PM (1439m) IST (Target: 06:00 PM IST)
+    is_morning_window = 400 <= total_minutes <= 840
+    is_evening_window = 1060 <= total_minutes <= 1439
+
     target_slot = args.slot
     owner_slot = None
 
     if target_slot == 0:
-        target_slot = 2 if is_evening_window else 1
-        slot1_done = is_slot_published_today(1, today_str)
-        slot2_done = is_slot_published_today(2, today_str)
-
         if is_evening_window:
+            target_slot = 2
+            slot2_done = is_slot_published_today(2, today_str)
             if not slot2_done:
                 owner_slot = 2
-                log_run(f"⏰ [CATCH-UP/DUE] Evening Slot 2 (06:00 PM IST) is pending for owner. Launching Slot 2.")
-            elif not slot1_done:
-                owner_slot = 1
-                log_run(f"⏰ [CATCH-UP] Slot 2 published, but morning Slot 1 was missed earlier today for owner. Catching up Slot 1 now.")
+                log_run(f"⏰ [DUE] Evening Slot 2 (06:00 PM IST) is pending for owner. Launching Slot 2.")
             else:
-                log_run(f"✅ Both Slot 1 and Slot 2 are already published for owner today ({today_str}).")
-        else:
+                log_run(f"✅ Evening Slot 2 already published for owner today ({today_str}). Standing by.")
+        elif is_morning_window:
+            target_slot = 1
+            slot1_done = is_slot_published_today(1, today_str)
             if not slot1_done:
                 owner_slot = 1
-                log_run(f"⏰ [CATCH-UP/DUE] Morning Slot 1 (07:00 AM IST) is pending for owner. Launching Slot 1.")
+                log_run(f"⏰ [DUE] Morning Slot 1 (07:00 AM IST) is pending for owner. Launching Slot 1.")
             else:
-                log_run(f"✅ Morning Slot 1 already published for owner today ({today_str}).")
+                log_run(f"✅ Morning Slot 1 already published for owner today ({today_str}). Next slot opens at 05:40 PM IST.")
+        else:
+            if not args.force:
+                log_run(
+                    f"⏸️ [OFF-SCHEDULE STANDBY] Current time is {now_local.strftime('%I:%M %p %Z')}. "
+                    f"No publishing window is currently active.\n"
+                    f"   - Morning Slot 1: 06:40 AM - 02:00 PM IST (Target 07:00 AM)\n"
+                    f"   - Evening Slot 2: 05:40 PM - 11:59 PM IST (Target 06:00 PM)\n"
+                    f"Standing down cleanly without publishing. Use --force to override."
+                )
+                sys.exit(0)
+            else:
+                target_slot = 1
+                owner_slot = 1
+                log_run("⚠️ [--force] Off-schedule run forced by user. Defaulting to Slot 1.")
     else:
+        # Explicit slot requested (--slot 1 or --slot 2)
+        in_win, win_reason = is_time_in_slot_window(target_slot, now_local)
+        if not in_win and not args.force:
+            log_run(
+                f"⏰ [BLOCKED: OUTSIDE WINDOW] Slot {target_slot} requested, but {win_reason}. "
+                f"Refusing early/off-schedule execution to preserve posting schedule. Pass --force to override."
+            )
+            sys.exit(0)
         owner_slot = target_slot
 
     slot_title = "Morning Slot 1 (07:00 AM IST)" if target_slot == 1 else "Evening Slot 2 (06:00 PM IST)"
@@ -517,16 +541,11 @@ async def main():
         log_run("Owner publishing skipped (all active slots already published for owner).")
 
     # 2. Process all tenant workspaces if requested
-    if args.include_tenants and not args.workspace_id:
+    if args.include_tenants and not args.workspace_id and target_slot in (1, 2):
         try:
             from backend.app.core.cron_scheduler import process_tenant_workspaces_for_slot
             log_run(f"Scanning and processing active tenant workspaces for Slot {target_slot}...")
-            await process_tenant_workspaces_for_slot(target_slot, today_str)
-
-            # In evening window, also check if any tenant missed morning Slot 1 catch-up
-            if target_slot == 2 and args.slot == 0:
-                log_run("Checking active tenant workspaces for morning Slot 1 catch-up...")
-                await process_tenant_workspaces_for_slot(1, today_str)
+            await process_tenant_workspaces_for_slot(target_slot, today_str, force=args.force)
         except Exception as t_err:
             log_run(f"❌ Tenant workspaces processing encountered error: {t_err}")
             logger.exception("Tenant Cloud Pipeline Error")

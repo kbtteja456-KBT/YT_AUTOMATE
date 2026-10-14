@@ -191,14 +191,14 @@ async def trigger_autopilot_slot(
     from backend.app.core.cron_scheduler import run_slot_with_lock
 
     if async_mode:
-        background_tasks.add_task(run_slot_with_lock, slot_index=slot_index, custom_topic=custom_topic)
+        background_tasks.add_task(run_slot_with_lock, slot_index=slot_index, custom_topic=custom_topic, force=True)
         return {
             "status": "QUEUED",
             "slot_index": slot_index,
             "message": f"Slot {slot_index} execution launched asynchronously. Check /api/autopilot/status for live progress."
         }
 
-    result = await run_slot_with_lock(slot_index=slot_index, custom_topic=custom_topic)
+    result = await run_slot_with_lock(slot_index=slot_index, custom_topic=custom_topic, force=True)
     return result
 
 

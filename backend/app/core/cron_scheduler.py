@@ -17,6 +17,32 @@ _currently_running_slot: Optional[int] = None
 _is_tenant_processing: bool = False
 
 
+def is_time_in_slot_window(slot_index: int, dt: Optional[datetime] = None) -> tuple[bool, str]:
+    """Verify if local datetime falls within the permitted operational window for the slot.
+    - Slot 1 (Morning 07:00 AM IST): Allowed from 06:40 AM to 02:00 PM (14:00) IST.
+    - Slot 2 (Evening 06:00 PM IST): Allowed from 05:40 PM (17:40) to 11:59 PM (23:59) IST.
+    """
+    tz = zoneinfo.ZoneInfo(settings.timezone)
+    now_local = dt or datetime.now(tz)
+    total_minutes = now_local.hour * 60 + now_local.minute
+
+    if slot_index == 1:
+        if 400 <= total_minutes <= 840:
+            return True, "Within Morning Slot 1 window (06:40 AM - 02:00 PM IST)"
+        elif total_minutes < 400:
+            return False, f"Too early for Morning Slot 1 (Current: {now_local.strftime('%I:%M %p')}, window opens at 06:40 AM IST)"
+        else:
+            return False, f"Past Morning Slot 1 window (Current: {now_local.strftime('%I:%M %p')}, window closed at 02:00 PM IST)"
+    elif slot_index == 2:
+        if 1060 <= total_minutes <= 1439:
+            return True, "Within Evening Slot 2 window (05:40 PM - 11:59 PM IST)"
+        elif total_minutes < 1060:
+            return False, f"Too early for Evening Slot 2 (Current: {now_local.strftime('%I:%M %p')}, window opens at 05:40 PM IST)"
+        else:
+            return False, "Past Evening Slot 2 window"
+    return False, f"Invalid slot index {slot_index}"
+
+
 def is_slot_published_today(slot_index: int, today_str: Optional[str] = None, workspace_id: Optional[str] = None) -> bool:
     """Check MongoDB to verify if a video was already published for the given slot today.
     - If workspace_id is provided, checks scoped to that tenant workspace.
@@ -345,9 +371,15 @@ async def execute_slot_pipeline(
     )
 
 
-async def run_slot_with_lock(slot_index: int, custom_topic: Optional[str] = None) -> dict:
+async def run_slot_with_lock(slot_index: int, custom_topic: Optional[str] = None, force: bool = False) -> dict:
     """Execute owner slot pipeline with mutual exclusion lock preventing concurrent overlapping runs."""
     global _is_pipeline_running, _currently_running_slot
+    if not force:
+        in_win, win_reason = is_time_in_slot_window(slot_index)
+        if not in_win:
+            logger.warning(f"Slot {slot_index} cannot run: {win_reason}")
+            return {"status": "SKIPPED", "reason": win_reason}
+
     if _is_pipeline_running:
         logger.warning(f"Pipeline already active for slot {_currently_running_slot}. Skipping overlapping run.")
         return {"status": "SKIPPED", "reason": f"Slot {_currently_running_slot} is currently running."}
@@ -366,9 +398,15 @@ async def run_slot_with_lock(slot_index: int, custom_topic: Optional[str] = None
         _currently_running_slot = None
 
 
-async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str) -> None:
+async def process_tenant_workspaces_for_slot(slot_index: int, today_str: str, force: bool = False) -> None:
     """Scan and publish scheduled Shorts for all active tenant workspaces with connected YouTube channels."""
     global _is_tenant_processing
+    if not force:
+        in_win, win_reason = is_time_in_slot_window(slot_index)
+        if not in_win:
+            logger.debug(f"[Tenant Autopilot] Standing down for Slot {slot_index}: {win_reason}")
+            return
+
     if _is_tenant_processing:
         logger.debug(f"[Tenant Autopilot] Tenant processing cycle already active. Standing down.")
         return
@@ -538,10 +576,10 @@ async def _scheduler_loop():
 
             now = datetime.now(tz)
             today_str = now.strftime("%Y-%m-%d")
-            hour = now.hour
+            total_minutes = now.hour * 60 + now.minute
 
-            # Morning Slot (Slot 1): Target 07:00 AM IST
-            if 7 <= hour < 18:
+            # Morning Slot (Slot 1): Target 07:00 AM IST (Window: 06:40 AM to 02:00 PM IST)
+            if 400 <= total_minutes <= 840:
                 if not is_slot_published_today(1, today_str) and not _is_pipeline_running:
                     logger.info(f"⏰ [Autopilot Scheduler] Slot 1 (07:00 AM) due or catching up for {today_str}. Launching Owner Pipeline...")
                     asyncio.create_task(run_slot_with_lock(1))
@@ -549,8 +587,8 @@ async def _scheduler_loop():
                 if not _is_tenant_processing:
                     asyncio.create_task(process_tenant_workspaces_for_slot(1, today_str))
 
-            # Evening Slot (Slot 2): Target 06:00 PM (18:00) IST
-            elif 18 <= hour <= 23:
+            # Evening Slot (Slot 2): Target 06:00 PM (18:00) IST (Window: 05:40 PM to 11:59 PM IST)
+            elif 1060 <= total_minutes <= 1439:
                 if not is_slot_published_today(2, today_str) and not _is_pipeline_running:
                     logger.info(f"⏰ [Autopilot Scheduler] Slot 2 (06:00 PM) due or catching up for {today_str}. Launching Owner Pipeline...")
                     asyncio.create_task(run_slot_with_lock(2))
