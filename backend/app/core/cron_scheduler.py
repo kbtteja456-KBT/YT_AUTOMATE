@@ -203,16 +203,6 @@ async def execute_slot_pipeline(
     else:
         custom_prompt = ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt") if ws_obj else None
         pref_format = "alan_becker_animation"
-            if arch_info.archetype == "documentary_cinematic":
-                pref_format = "documentary"
-            elif arch_info.archetype == "quote_card":
-                pref_format = "quote_card"
-            elif arch_info.archetype == "trivia_quiz":
-                pref_format = "trivia_quiz"
-            elif arch_info.archetype == "code_quiz":
-                pref_format = "quiz_card"
-            else:
-                pref_format = "documentary"
 
     idempotency_key = compute_content_hash(idemp_prefix)
     existing = db.publishing_jobs.find_one({"idempotency_key": idempotency_key})
