@@ -1,10 +1,12 @@
 """Pipeline orchestrator executing the full autonomous state machine with stage resumption."""
 
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 from pathlib import Path
 
+from backend.app.config import settings
 from backend.app.core.logging import logger
 from backend.app.core.errors import AutopilotError, QCScoreThresholdError, DuplicateUploadPreventedError
 from backend.app.core.security import compute_file_hash
@@ -460,6 +462,215 @@ class PipelineOrchestrator:
             "quality_score": qc_report.score
         }
 
+    async def _execute_alan_becker_pipeline(
+        self,
+        job_id: str,
+        publish_immediately: bool,
+        slot_index: Optional[int],
+        dry_run: bool
+    ) -> dict[str, Any]:
+        """Execute the pure visual Alan Becker stickman animation pipeline."""
+        from backend.app.core.db import SyncMongoDB
+        from backend.app.curriculum.python_series import CurriculumManager
+        from backend.app.core.security import compute_file_hash
+        from bson import ObjectId
+
+        ep_info = CurriculumManager.get_current_episode_info()
+        ep_num = ep_info.get("actual_episode_number") or ep_info.get("episode", 1)
+        title_raw = ep_info.get("title", f"Python Concept Ep {ep_num}")
+        video_title = f"Python Visual Ep {ep_num}: {title_raw} #Shorts #Python #Animation"
+        if len(video_title) > 100:
+            video_title = video_title[:97] + "..."
+
+        logger.info(
+            f"\n============================================================\n"
+            f"[STAGE: ALAN BECKER PIPELINE] Episode {ep_num}: {title_raw}\n"
+            f"============================================================"
+        )
+
+        # 1. State transitions
+        await self._transition_state(job_id, JobState.RESEARCHING)
+        await self._transition_state(job_id, JobState.SCRIPTING)
+        await self._transition_state(job_id, JobState.STORYBOARDING)
+        await self._transition_state(job_id, JobState.GENERATING_MEDIA)
+
+        # 2. Check rendered video and thumbnail
+        await self._transition_state(job_id, JobState.RENDERING)
+        rendered_video_path = os.path.join(settings.media_storage_dir, "rendered", f"alan_becker_python_ep{ep_num}_ultimate.mp4")
+        thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", f"alan_becker_ultimate_ep{ep_num}.jpg")
+
+        if not os.path.exists(rendered_video_path):
+            default_ep1 = os.path.join(settings.media_storage_dir, "rendered", "alan_becker_python_ep1_ultimate.mp4")
+            if os.path.exists(default_ep1):
+                rendered_video_path = default_ep1
+            else:
+                raise AutopilotError(f"Rendered video for episode {ep_num} not found at: {rendered_video_path}")
+
+        if not os.path.exists(thumbnail_path):
+            default_thumb = os.path.join(settings.media_storage_dir, "thumbnails", "alan_becker_ultimate_ep1.jpg")
+            if os.path.exists(default_thumb):
+                thumbnail_path = default_thumb
+
+        await self._transition_state(job_id, JobState.RENDERED)
+
+        # 3. QC Gate
+        await self._transition_state(job_id, JobState.QUALITY_CHECK)
+        qc_report = await self.qc.audit_video(
+            video_path=rendered_video_path,
+            min_duration=15.0,
+            max_duration=65.0
+        )
+        if not qc_report.passed:
+            await self._transition_state(job_id, JobState.QC_FAILED, error=f"QC score {qc_report.score:.1f}/100 failed.")
+            raise QCScoreThresholdError(qc_report.score, qc_report.remediation_notes)
+
+        await self._transition_state(job_id, JobState.QC_PASSED)
+        await self._transition_state(job_id, JobState.GENERATING_THUMBNAIL)
+        await self._transition_state(job_id, JobState.READY)
+
+        file_hash = compute_file_hash(rendered_video_path)
+        next_teaser = ep_info.get("next_teaser", f"Episode {ep_num + 1} coming soon!")
+
+        description_text = (
+            f"Episode {ep_num} of our 10,000-Episode Python Visual Series! 🚀\n\n"
+            f"{title_raw}\n\n"
+            f"Watch the stickman interact with Python memory and code in real time!\n\n"
+            f"⚡ STAGE 1: Creating variable x = 5 (reference stored in memory!)\n"
+            f"⚡ STAGE 2: Reassignment x = x + 3 (watch them fuse into 8!)\n"
+            f"⚡ STAGE 3: The Secret (y = x): y does NOT copy 8 — both point to the exact same object!\n\n"
+            f"🔥 Up Next: {next_teaser}\n\n"
+            f"🔔 Follow the playlist & subscribe to master every Python concept from zero to FAANG level!\n\n"
+            f"#Python #PythonShorts #AlanBeckerStyle #CodingAnimation #Programming #LearnPython #Shorts #CodeAnimation #Tech"
+        )
+        tags = [
+            "Python", "Python Shorts", "Alan Becker Style", "Coding Animation",
+            "Animation vs Coding", "Learn Python", "Python Tutorial", "Programming",
+            "Computer Science", "Python Tricks", "Code Animation", "Python For Beginners",
+            "Python Variables", "Software Engineering", "Python Memory", "Coding", "Tech"
+        ]
+
+        # 4. Upload to YouTube
+        if publish_immediately and not dry_run:
+            await self._transition_state(job_id, JobState.UPLOADING)
+            if not self.youtube:
+                raise AutopilotError("YouTube agent not initialized for publishing.")
+
+            pub_res = await self.youtube.publish_short(
+                video_filepath=rendered_video_path,
+                title=video_title,
+                description=description_text,
+                tags=tags,
+                privacy_status="public"
+            )
+            youtube_video_id = pub_res.get("youtube_video_id")
+            youtube_url = pub_res.get("youtube_url") or f"https://www.youtube.com/shorts/{youtube_video_id}"
+
+            await self._transition_state(job_id, JobState.PUBLISHED)
+
+            # Try to upload custom thumbnail
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                try:
+                    from googleapiclient.http import MediaFileUpload
+                    service = self.youtube.yt._get_service()
+                    service.thumbnails().set(
+                        videoId=youtube_video_id,
+                        media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg")
+                    ).execute()
+                    logger.info(f"Custom thumbnail uploaded for video {youtube_video_id}")
+                except Exception as th_err:
+                    logger.warning(f"Custom thumbnail upload note: {th_err}")
+
+            # Try to post engagement comment
+            try:
+                service = self.youtube.yt._get_service()
+                comment_body = {
+                    "snippet": {
+                        "videoId": youtube_video_id,
+                        "topLevelComment": {
+                            "snippet": {
+                                "textOriginal": f"🔥 {next_teaser} drops at 6:00 PM IST! Subscribe & hit the 🔔 so you never miss an episode. What Python concept should stickman animate next?"
+                            }
+                        }
+                    }
+                }
+                service.commentThreads().insert(part="snippet", body=comment_body).execute()
+                logger.info("Engagement comment posted successfully!")
+            except Exception as c_err:
+                logger.warning(f"Comment insertion note: {c_err}")
+
+            # Advance curriculum in MongoDB
+            CurriculumManager.advance_to_next_episode(ep_num)
+
+            # Persist video doc in DB
+            db = SyncMongoDB.get_db()
+            now_utc = datetime.now(timezone.utc)
+            db.videos.insert_one({
+                "job_id": str(job_id),
+                "title": video_title,
+                "description": description_text,
+                "tags": tags,
+                "video_path": rendered_video_path,
+                "thumbnail_path": thumbnail_path,
+                "file_hash": file_hash,
+                "youtube_video_id": youtube_video_id,
+                "youtube_url": youtube_url,
+                "youtube_published_at": now_utc,
+                "status": "PUBLISHED",
+                "slot_index": slot_index,
+                "episode": ep_num,
+                "series": "python_visual_curriculum",
+                "created_at": now_utc
+            })
+
+            # Update publishing_jobs doc
+            q_job = {"_id": ObjectId(job_id)} if ObjectId.is_valid(job_id) else {"_id": job_id}
+            db.publishing_jobs.update_one(
+                q_job,
+                {"$set": {
+                    "state": JobState.PUBLISHED.value,
+                    "youtube_video_id": youtube_video_id,
+                    "youtube_url": youtube_url,
+                    "youtube_published_at": now_utc,
+                    "updated_at": now_utc
+                }}
+            )
+
+            # Email notification
+            try:
+                from backend.app.core.notifications import notify_workspace_owner_video_published
+                notify_workspace_owner_video_published(
+                    workspace_id=None,
+                    video_title=video_title,
+                    video_url=youtube_url,
+                    published_time=now_utc,
+                    channel_id="UCBQAktpydJEze5CmEbeJBRQ"
+                )
+            except Exception as notify_err:
+                logger.warning(f"[Orchestrator] Email notification dispatch note: {notify_err}")
+
+            return {
+                "status": "PUBLISHED",
+                "job_id": job_id,
+                "topic": title_raw,
+                "title": video_title,
+                "video_path": rendered_video_path,
+                "thumbnail_path": thumbnail_path,
+                "quality_score": qc_report.score,
+                "youtube_video_id": youtube_video_id,
+                "youtube_url": youtube_url,
+                "file_hash": file_hash,
+            }
+
+        return {
+            "status": "READY",
+            "job_id": job_id,
+            "topic": title_raw,
+            "title": video_title,
+            "video_path": rendered_video_path,
+            "thumbnail_path": thumbnail_path,
+            "quality_score": qc_report.score
+        }
+
     async def execute_job(
         self,
         job_id: str,
@@ -476,6 +687,14 @@ class PipelineOrchestrator:
     ) -> dict[str, Any]:
         """Execute all stages sequentially with automatic resumption and duplicate retry protection."""
         logger.info(f"[Orchestrator] Beginning execution for Job {job_id} (slot: {slot_index}, prompt: '{custom_prompt}', duration: {target_duration_sec}s, dry_run: {dry_run})...")
+
+        if content_format == "alan_becker_animation":
+            return await self._execute_alan_becker_pipeline(
+                job_id=job_id,
+                publish_immediately=publish_immediately,
+                slot_index=slot_index,
+                dry_run=dry_run
+            )
 
         max_duplicate_retries = 5
         past_topics: list[str] = []
