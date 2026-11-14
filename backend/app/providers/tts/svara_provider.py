@@ -33,7 +33,8 @@ class SvaraTTSProvider:
         text: str,
         output_filepath: str,
         voice_id: str = DEFAULT_TELUGU_VOICE,
-        language: str = "te"
+        language: str = "te",
+        pace: float = 0.88
     ) -> bool:
         """Synthesizes text into high-quality speech and writes MP3 file."""
         out_path = Path(output_filepath)
@@ -44,6 +45,7 @@ class SvaraTTSProvider:
             "input": text,
             "voice": voice_id,
             "lang": language,
+            "pace": pace,
             "response_format": "mp3"
         }
 

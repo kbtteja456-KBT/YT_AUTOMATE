@@ -481,32 +481,33 @@ class PipelineOrchestrator:
         ws_id = j_doc.get("workspace_id")
         ws_doc = db.workspaces.find_one({"_id": ObjectId(ws_id)}) if ws_id else None
 
-        is_telugu = False
+        is_c = False
         target_niche = "Python Programming"
-        if ws_doc and (ws_doc.get("language") == "te" or "telugu" in ws_doc.get("niche", "").lower()):
-            is_telugu = True
-            target_niche = "Python in Telugu"
-        elif "telugu" in j_doc.get("niche", "").lower():
-            is_telugu = True
-            target_niche = "Python in Telugu"
+        if ws_doc and ("c programming" in ws_doc.get("niche", "").lower() or " c " in f" {ws_doc.get('niche', '').lower()} "):
+            is_c = True
+            target_niche = "C Programming"
+        elif "c programming" in j_doc.get("niche", "").lower():
+            is_c = True
+            target_niche = "C Programming"
 
-        ep_info = CurriculumManager.get_current_episode_info(niche=target_niche)
-        ep_num = ep_info.get("actual_episode_number") or ep_info.get("episode", 1)
-        title_raw = ep_info.get("title", f"Python Concept Ep {ep_num}")
-
-        if is_telugu:
-            ep_info["language"] = "te"
-            ep_info["voice_id"] = "sv_2fqanvcj"
-            video_title = f"Python in Telugu Ep {ep_num}: {title_raw} ⚡ #Shorts #Telugu #Python"
+        if is_c:
+            from backend.app.curriculum.c_series import CCurriculumManager
+            ep_info = CCurriculumManager.get_current_episode_info()
+            ep_num = ep_info.get("actual_episode_number") or ep_info.get("episode", 1)
+            title_raw = ep_info.get("title", f"C Concept Ep {ep_num}")
+            video_title = f"C Programming Ep {ep_num}: {title_raw} ⚡ #Shorts #Clanguage #Coding"
         else:
-            video_title = f"Python Visual Ep {ep_num}: {title_raw} #Shorts #Python #Animation"
+            ep_info = CurriculumManager.get_current_episode_info(niche=target_niche)
+            ep_num = ep_info.get("actual_episode_number") or ep_info.get("episode", 1)
+            title_raw = ep_info.get("title", f"Python Concept Ep {ep_num}")
+            video_title = f"Python Ep {ep_num}: {title_raw} ⚡ #Shorts #Python #Coding"
 
         if len(video_title) > 100:
             video_title = video_title[:97] + "..."
 
         logger.info(
             f"\n============================================================\n"
-            f"[STAGE: ALAN BECKER PIPELINE] Episode {ep_num}: {title_raw} (Telugu: {is_telugu})\n"
+            f"[STAGE: ALAN BECKER PIPELINE] Episode {ep_num}: {title_raw} (Language: {'C' if is_c else 'Python'})\n"
             f"============================================================"
         )
 
@@ -518,22 +519,20 @@ class PipelineOrchestrator:
 
         # 2. Check rendered video and thumbnail
         await self._transition_state(job_id, JobState.RENDERING)
-        suffix = "_te" if is_telugu else ""
-        rendered_video_path = os.path.join(settings.media_storage_dir, "rendered", f"educational_python_ep{ep_num}{suffix}.mp4")
-        if not os.path.exists(rendered_video_path):
-            alt_path = os.path.join(settings.media_storage_dir, "rendered", f"channel2_telugu_ep{ep_num}.mp4") if is_telugu else os.path.join(settings.media_storage_dir, "rendered", f"educational_python_ep{ep_num}.mp4")
-            if os.path.exists(alt_path):
-                rendered_video_path = alt_path
-            else:
-                from backend.app.curriculum.educational_engine import render_educational_episode
-                logger.info(f"[Orchestrator] Episode {ep_num} not pre-rendered. Rendering on demand via educational studio...")
-                rendered_video_path = render_educational_episode(ep_info)
+        if is_c:
+            rendered_video_path = os.path.join(settings.media_storage_dir, "rendered", f"channel2_c_ep{ep_num}.mp4")
+            thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", f"channel2_c_ep{ep_num}.jpg")
+        else:
+            rendered_video_path = os.path.join(settings.media_storage_dir, "rendered", f"educational_python_ep{ep_num}.mp4")
+            thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", f"educational_ep{ep_num}.jpg")
 
-        thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", f"channel2_telugu_ep{ep_num}.jpg") if is_telugu else os.path.join(settings.media_storage_dir, "thumbnails", f"educational_ep{ep_num}.jpg")
+        if not os.path.exists(rendered_video_path):
+            from backend.app.curriculum.educational_engine import render_educational_episode
+            logger.info(f"[Orchestrator] Episode {ep_num} not pre-rendered. Rendering on demand via educational studio...")
+            rendered_video_path = render_educational_episode(ep_info)
+
         if not os.path.exists(thumbnail_path):
-            alt_thumb = os.path.join(settings.media_storage_dir, "thumbnails", f"educational_ep{ep_num}.jpg")
-            if os.path.exists(alt_thumb):
-                thumbnail_path = alt_thumb
+            thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", "default_thumb.jpg")
 
         await self._transition_state(job_id, JobState.RENDERED)
 
@@ -630,7 +629,11 @@ class PipelineOrchestrator:
                 logger.warning(f"Comment insertion note: {c_err}")
 
             # Advance curriculum in MongoDB
-            CurriculumManager.advance_to_next_episode(ep_num, niche=target_niche)
+            if is_c:
+                from backend.app.curriculum.c_series import CCurriculumManager
+                CCurriculumManager.advance_to_next_episode(ep_num)
+            else:
+                CurriculumManager.advance_to_next_episode(ep_num, niche=target_niche)
 
             # Persist video doc in DB
             db = SyncMongoDB.get_db()
