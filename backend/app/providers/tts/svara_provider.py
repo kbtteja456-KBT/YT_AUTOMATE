@@ -66,3 +66,4 @@ class SvaraTTSProvider:
         except Exception as e:
             logger.error(f"[SvaraTTS] Exception during synthesis: {e}")
             return False
+

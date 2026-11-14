@@ -268,11 +268,15 @@ class CurriculumManager:
     """Manages sequential episode progression and ensures zero repetition across 10,000 episodes."""
 
     @classmethod
-    def get_current_episode_info(cls) -> Dict[str, Any]:
+    def get_current_episode_info(cls, niche: str = "Python Programming") -> Dict[str, Any]:
         """Fetch current episode index from MongoDB and retrieve or generate its unique concept."""
         db = SyncMongoDB.get_db()
-        tracker = db.system_config.find_one({"key": "python_visual_curriculum"})
-        current_ep = tracker.get("current_episode", 1) if tracker else 1
+        if "telugu" in niche.lower():
+            tracker = db.curriculum_tracker.find_one({"niche": "Python in Telugu"})
+            current_ep = tracker.get("current_episode", 1) if tracker else 1
+        else:
+            tracker = db.system_config.find_one({"key": "python_visual_curriculum"})
+            current_ep = tracker.get("current_episode", 1) if tracker else 1
 
         # Check if episode is already saved in MongoDB
         saved_ep = db.python_visual_episodes.find_one({"episode": current_ep})
@@ -336,28 +340,39 @@ class CurriculumManager:
         }
 
     @classmethod
-    def advance_to_next_episode(cls, published_ep_num: int) -> int:
+    def advance_to_next_episode(cls, published_ep_num: int, niche: str = "Python Programming") -> int:
         """Advance episode counter in MongoDB after successful publishing."""
         db = SyncMongoDB.get_db()
         next_ep = published_ep_num + 1
         now_dt = datetime.now(timezone.utc)
-        db.system_config.update_one(
-            {"key": "python_visual_curriculum"},
-            {"$set": {
-                "current_episode": next_ep,
-                "last_published_episode": published_ep_num,
-                "updated_at": now_dt
-            }},
-            upsert=True
-        )
-        db.curriculum_tracker.update_one(
-            {"niche": "Python Programming"},
-            {"$set": {
-                "current_episode": next_ep,
-                "last_published_episode": published_ep_num,
-                "updated_at": now_dt
-            }},
-            upsert=True
-        )
-        logger.info(f"🚀 Curriculum advanced to Episode {next_ep} (Last published: Ep {published_ep_num})")
+        if "telugu" in niche.lower():
+            db.curriculum_tracker.update_one(
+                {"niche": "Python in Telugu"},
+                {"$set": {
+                    "current_episode": next_ep,
+                    "last_published_episode": published_ep_num,
+                    "updated_at": now_dt
+                }},
+                upsert=True
+            )
+        else:
+            db.system_config.update_one(
+                {"key": "python_visual_curriculum"},
+                {"$set": {
+                    "current_episode": next_ep,
+                    "last_published_episode": published_ep_num,
+                    "updated_at": now_dt
+                }},
+                upsert=True
+            )
+            db.curriculum_tracker.update_one(
+                {"niche": "Python Programming"},
+                {"$set": {
+                    "current_episode": next_ep,
+                    "last_published_episode": published_ep_num,
+                    "updated_at": now_dt
+                }},
+                upsert=True
+            )
+        logger.info(f"🚀 Curriculum advanced to Episode {next_ep} for {niche} (Last published: Ep {published_ep_num})")
         return next_ep
