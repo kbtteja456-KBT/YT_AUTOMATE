@@ -266,7 +266,20 @@ def draw_callout_banner(draw: ImageDraw.ImageDraw, step_text: str, explanation: 
 # DYNAMIC EDUCATIONAL EPISODE RENDERER
 # -------------------------------------------------------------
 async def synthesize_narration(text: str, out_path: Path, language: str = "en", voice_id: Optional[str] = None):
-    # Support Google Voice or Edge-TTS depending on configuration
+    # 1. Primary Indic Provider: Kenpath Labs Svara TTS (Hyper-natural Telugu)
+    if language == "te" or (voice_id and voice_id.startswith("sv_")):
+        try:
+            from backend.app.providers.tts.svara_provider import SvaraTTSProvider
+            svara = SvaraTTSProvider()
+            chosen_svara_voice = voice_id if (voice_id and voice_id.startswith("sv_")) else "sv_2fqanvcj"
+            success = svara.synthesize(text=text, output_filepath=str(out_path), voice_id=chosen_svara_voice, language="te")
+            if success and out_path.exists() and out_path.stat().st_size > 1000:
+                logger.info(f"[EducationalStudio] Kenpath Svara synthesized audio successfully ({out_path.stat().st_size} bytes).")
+                return
+        except Exception as se:
+            logger.warning(f"Svara TTS failed ({se}), falling back to Google/Edge...")
+
+    # 2. Secondary Telugu Provider: Google TTS
     if language == "te" or voice_id == "google_telugu":
         try:
             from gtts import gTTS
@@ -276,7 +289,7 @@ async def synthesize_narration(text: str, out_path: Path, language: str = "en", 
         except Exception as ge:
             logger.warning(f"gTTS Telugu failed ({ge}), falling back to Edge Telugu...")
 
-    # Edge TTS (Supports English and Natural Telugu Mohan/Shruti)
+    # 3. Fallback: Edge TTS (Supports English and Natural Telugu Mohan/Shruti)
     chosen_voice = voice_id or ("te-IN-MohanNeural" if language == "te" else "en-US-AndrewMultilingualNeural")
     communicate = edge_tts.Communicate(
         text=text,

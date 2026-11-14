@@ -39,3 +39,4 @@ draw.text((540, 1640), "MASTER PYTHON IN 50s! ⚡", fill=(10, 12, 16), font=font
 
 img.save(thumb_path, "JPEG", quality=95)
 print("SUCCESS: Created thumbnail:", thumb_path, "Size:", thumb_path.stat().st_size)
+
