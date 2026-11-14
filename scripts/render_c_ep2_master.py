@@ -1,13 +1,12 @@
-"""Production Master Animation Studio: C Language Ep 2 (Variables & Core Types).
+"""Production Master Animation Studio: C Language Ep 2 (char vs string quotes).
 Target Channel: Second Channel (Bhanu Teja - @bhanuteja-n8x)
 
-Improvements:
-- Stickman enters walking from the left with footstep sounds, sits on chair at desk
-- Laptop rests naturally on desk
-- Zero lag: snappy, fast, fluid typing and execution
-- Code editor is NEVER covered by popups or alerts (100% visible red/green line highlights)
-- All compiler error details appear in Terminal below
-- Pure Alan Becker sound effects (footsteps, chair sit, keyboard, pop, buzzer, chime)
+Exact Fixes:
+1. Proper Desk, Chair & Laptop facing stickman (screen tilted right toward his eyes, keyboard directly under his tapping hands).
+2. Character-by-character progressive typing for EVERY line with moving cursor.
+3. STORY FLOW: Types BUGGY CODE FIRST (char grade = "A";) -> GCC CRASHES in Terminal -> Confused stickman -> FIXES CODE with 'A' -> SUCCESS & CELEBRATION!
+4. Highlight bars drawn UNDERNEATH code text (code is 100% visible and sharp, zero covering blocks!).
+5. Rich multi-track SFX: Footsteps entering, chair sit, continuous keyboard typing clacks, enter pops, error buzzer, victory chime, ambient bed.
 """
 
 import os
@@ -108,102 +107,95 @@ def draw_window_frame(draw, x0, y0, x1, y1, title="types.c", is_terminal=False):
     draw.text((x0 + 80, y0 + 11), title, fill=t_color, font=FONT_SUBTITLE)
 
 
-def draw_desk_and_chair(draw, dx=600, dy=1460):
-    dw, dh = 240, 14
-    draw.rounded_rectangle([dx - dw // 2, dy, dx + dw // 2, dy + dh], radius=6, fill=(45, 55, 75), outline=(70, 85, 115), width=2)
-    draw.line([(dx - dw // 2 + 20, dy + dh), (dx - dw // 2 + 20, 1550)], fill=(70, 85, 115), width=4)
-    draw.line([(dx + dw // 2 - 20, dy + dh), (dx + dw // 2 - 20, 1550)], fill=(70, 85, 115), width=4)
-    cx, cy = dx + 150, dy + 25
+def draw_desk_chair_and_laptop(draw, dx=560, dy=1460, stick_pose="sit_typing", t=0.0):
+    # Desk
+    dw, dh = 300, 14
+    dx0 = dx - dw // 2
+    dx1 = dx + dw // 2
+    draw.rounded_rectangle([dx0, dy, dx1, dy + dh], radius=6, fill=(45, 55, 75), outline=(70, 85, 115), width=2)
+    draw.line([(dx0 + 25, dy + dh), (dx0 + 25, 1550)], fill=(70, 85, 115), width=4)
+    draw.line([(dx1 - 25, dy + dh), (dx1 - 25, 1550)], fill=(70, 85, 115), width=4)
+
+    # Chair
+    cx, cy = 730, dy + 25
     draw.rounded_rectangle([cx - 30, cy, cx + 30, cy + 10], radius=4, fill=(55, 65, 88))
-    draw.line([(cx + 22, cy - 80), (cx + 22, cy + 10)], fill=(55, 65, 88), width=5)
+    draw.line([(cx + 25, cy - 85), (cx + 25, cy + 10)], fill=(55, 65, 88), width=5)
     draw.line([(cx, cy + 10), (cx, 1550)], fill=(40, 50, 70), width=4)
     draw.line([(cx - 25, 1550), (cx + 25, 1550)], fill=(40, 50, 70), width=3)
 
-
-def draw_laptop_on_desk(draw, lx=600, ly=1460):
-    bw, bh = 135, 10
+    # Laptop facing stickman
+    lx_left = 530
+    lx_right = 645
     draw.polygon([
-        (lx - bw // 2, ly),
-        (lx + bw // 2, ly),
-        (lx + bw // 2 - 10, ly + bh),
-        (lx - bw // 2 + 10, ly + bh)
+        (lx_left, dy),
+        (lx_right, dy),
+        (lx_right - 8, dy + 8),
+        (lx_left + 8, dy + 8)
     ], fill=LAPTOP_SILVER, outline=(160, 175, 195))
-    draw.rectangle([lx - 14, ly + 2, lx + 14, ly + 8], fill=(180, 190, 205))
-    sw, sh = 120, 72
-    sy_top = ly - sh
-    sx_left = lx - sw // 2 + 8
-    sx_right = lx + sw // 2 - 8
-    draw.polygon([(lx - sw // 2, ly), (lx + sw // 2, ly), (sx_right, sy_top), (sx_left, sy_top)], fill=LAPTOP_SCREEN, outline=LAPTOP_SILVER, width=2)
-    draw.polygon([(lx - sw // 2 + 5, ly - 3), (lx + sw // 2 - 5, ly - 3), (sx_right - 5, sy_top + 5), (sx_left + 5, sy_top + 5)], fill=(45, 90, 140))
+    draw.rectangle([580, dy + 2, 605, dy + 6], fill=(180, 190, 205))
+    
+    sx_hinge = lx_left + 5
+    sy_hinge = dy
+    sx_top = sx_hinge - 30
+    sy_top = dy - 70
+    draw.polygon([(sx_hinge - 4, sy_hinge), (sx_hinge, sy_hinge), (sx_top, sy_top), (sx_top - 4, sy_top)], fill=(160, 175, 195))
+    draw.polygon([(sx_hinge, sy_hinge), (sx_hinge + 45, sy_hinge - 15), (sx_top + 45, sy_top), (sx_top, sy_top)], fill=(45, 95, 155), outline=(56, 189, 248), width=1)
 
-
-def draw_stickman_state(draw, state="walk", walk_x=100, t=0.0):
+    # Stickman
     color = STICK_YELLOW
     head_r = 24
-    if state == "walk":
-        hx = walk_x
-        hy = 1400
-        draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=color)
-        neck = (hx, hy + head_r)
-        hip = (hx, hy + head_r + 80)
-        draw.line([neck, hip], fill=color, width=7)
-        leg_phase = math.sin(t * 14.0) * 28.0
-        draw.line([hip, (hip[0] + leg_phase, 1550)], fill=color, width=6)
-        draw.line([hip, (hip[0] - leg_phase, 1550)], fill=color, width=6)
-        arm_phase = math.sin(t * 14.0) * 22.0
-        draw.line([neck, (neck[0] - arm_phase, neck[1] + 45)], fill=color, width=6)
-        draw.line([neck, (neck[0] + arm_phase, neck[1] + 45)], fill=color, width=6)
-    elif state in ("sit_typing", "sit_idle", "sit_enter"):
-        hx = 750
-        hy = 1395
-        draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=color)
-        neck = (hx - 4, hy + head_r)
-        hip = (750, 1485)
-        draw.line([neck, hip], fill=color, width=7)
-        draw.line([hip, (680, 1495)], fill=color, width=6)
-        draw.line([(680, 1495), (670, 1550)], fill=color, width=6)
-        shoulder = (neck[0] - 2, neck[1] + 12)
-        if state == "sit_typing":
-            t_wave = math.sin(t * 24.0) * 5.0
-            draw.line([shoulder, (690, 1445)], fill=color, width=6)
-            draw.line([(690, 1445), (610, 1460 + t_wave)], fill=color, width=6)
-        elif state == "sit_enter":
-            draw.line([shoulder, (680, 1430)], fill=color, width=6)
-            draw.line([(680, 1430), (605, 1450)], fill=color, width=6)
-        else:
-            draw.line([shoulder, (695, 1450)], fill=color, width=6)
-            draw.line([(695, 1450), (620, 1462)], fill=color, width=6)
-    elif state == "confused":
-        hx = 770
-        hy = 1380
-        draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=color)
-        neck = (hx + 2, hy + head_r)
-        hip = (755, 1485)
-        draw.line([neck, hip], fill=color, width=7)
-        draw.line([hip, (690, 1495)], fill=color, width=6)
-        draw.line([(690, 1495), (680, 1550)], fill=color, width=6)
-        shoulder = (neck[0] - 2, neck[1] + 10)
+    hx, hy = 720, 1390
+    draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=color)
+    neck = (hx - 4, hy + head_r)
+    hip = (725, 1485)
+    draw.line([neck, hip], fill=color, width=7)
+
+    knee = (660, 1495)
+    foot = (650, 1550)
+    draw.line([hip, knee], fill=color, width=6)
+    draw.line([knee, foot], fill=color, width=6)
+
+    shoulder = (neck[0] - 2, neck[1] + 12)
+    if stick_pose == "sit_typing":
+        t_wave = math.sin(t * 26.0) * 5.0
+        draw.line([shoulder, (670, 1445)], fill=color, width=6)
+        draw.line([(670, 1445), (605, 1460 + t_wave)], fill=color, width=6)
+    elif stick_pose == "sit_enter":
+        draw.line([shoulder, (660, 1435)], fill=color, width=6)
+        draw.line([(660, 1435), (600, 1452)], fill=color, width=6)
+    elif stick_pose == "confused":
         draw.line([shoulder, (hx + 24, hy - 10)], fill=color, width=6)
         draw.line([(hx + 24, hy - 10), (hx + 6, hy - 25)], fill=color, width=6)
-        draw.line([shoulder, (shoulder[0] - 30, shoulder[1] + 20)], fill=color, width=6)
+        draw.line([shoulder, (shoulder[0] - 25, shoulder[1] + 20)], fill=color, width=6)
         draw.text((hx - 40, hy - 65), "?", fill=ERROR_RED, font=FONT_HEADER)
         draw.text((hx + 30, hy - 75), "?", fill=AMBER_NUMBER, font=FONT_HEADER)
-    elif state == "celebrate":
-        hx = 750
-        hy = 1390
-        draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=color)
-        neck = (hx, hy + head_r)
-        hip = (750, 1485)
-        draw.line([neck, hip], fill=color, width=7)
-        draw.line([hip, (680, 1495)], fill=color, width=6)
-        draw.line([(680, 1495), (670, 1550)], fill=color, width=6)
-        shoulder = (neck[0], neck[1] + 10)
+    elif stick_pose == "celebrate":
         draw.line([shoulder, (shoulder[0] - 35, shoulder[1] - 25)], fill=color, width=6)
         draw.line([(shoulder[0] - 35, shoulder[1] - 25), (shoulder[0] - 55, shoulder[1] - 55)], fill=color, width=6)
         draw.line([shoulder, (shoulder[0] + 35, shoulder[1] - 25)], fill=color, width=6)
         draw.line([(shoulder[0] + 35, shoulder[1] - 25), (shoulder[0] + 55, shoulder[1] - 55)], fill=color, width=6)
         for sx, sy in [(hx - 60, hy - 40), (hx + 65, hy - 45), (hx, hy - 65)]:
             draw.text((sx, sy), "★", fill=(250, 204, 21), font=FONT_HEADER)
+    else:
+        draw.line([shoulder, (675, 1450)], fill=color, width=6)
+        draw.line([(675, 1450), (615, 1460)], fill=color, width=6)
+
+
+def draw_stickman_walk(draw, walk_x=100, t=0.0):
+    color = STICK_YELLOW
+    head_r = 24
+    hx = walk_x
+    hy = 1400
+    draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=color)
+    neck = (hx, hy + head_r)
+    hip = (hx, hy + head_r + 80)
+    draw.line([neck, hip], fill=color, width=7)
+    leg_phase = math.sin(t * 14.0) * 28.0
+    draw.line([hip, (hip[0] + leg_phase, 1550)], fill=color, width=6)
+    draw.line([hip, (hip[0] - leg_phase, 1550)], fill=color, width=6)
+    arm_phase = math.sin(t * 14.0) * 22.0
+    draw.line([neck, (neck[0] - arm_phase, neck[1] + 45)], fill=color, width=6)
+    draw.line([neck, (neck[0] + arm_phase, neck[1] + 45)], fill=color, width=6)
 
 
 def render_code_tokens(draw, x_start, y, tokens):
@@ -226,7 +218,7 @@ def render_frame(frame_idx: int) -> Image.Image:
     draw.text((455, 93), "C Language", fill=(92, 157, 217), font=FONT_HEADER)
     draw_centered_badge(
         draw, cx=WIDTH // 2, cy=175,
-        text="EPISODE 2: DATA TYPES (%d, %f, %c)",
+        text="EPISODE 2: CHAR VS STRING LITERAL",
         font=FONT_SUBTITLE,
         fill_color=(18, 24, 38),
         text_color=CYAN_KEYWORD,
@@ -235,172 +227,176 @@ def render_frame(frame_idx: int) -> Image.Image:
     )
     
     ed_x0, ed_y0 = 80, 230
-    ed_x1, ed_y1 = 1000, 750
+    ed_x1, ed_y1 = 1000, 710
     draw_window_frame(draw, ed_x0, ed_y0, ed_x1, ed_y1, title="types.c", is_terminal=False)
     
-    tm_x0, tm_y0 = 80, 790
-    tm_x1, tm_y1 = 1000, 1220
+    tm_x0, tm_y0 = 80, 750
+    tm_x1, tm_y1 = 1000, 1200
     draw_window_frame(draw, tm_x0, tm_y0, tm_x1, tm_y1, title="TERMINAL - gcc build", is_terminal=True)
-    
-    draw_desk_and_chair(draw, dx=600, dy=1460)
-    draw_laptop_on_desk(draw, lx=600, ly=1460)
     
     cursor_char = "_" if int(t * 4.0) % 2 == 0 else " "
     
-    # C Code Lines
+    # C Snippets
     l1 = [("#include ", PURPLE_OP), ("<stdio.h>", GREEN_STRING)]
     l2 = [("int ", CYAN_KEYWORD), ("main() {", WHITE_VAR)]
     l3 = [("    int ", CYAN_KEYWORD), ("age = ", WHITE_VAR), ("25;", AMBER_NUMBER)]
-    l4 = [("    float ", CYAN_KEYWORD), ("score = ", WHITE_VAR), ("9.5;", AMBER_NUMBER)]
-    l5_valid = [("    char ", CYAN_KEYWORD), ("grade = ", WHITE_VAR), ("'A';", GREEN_STRING)]
-    l5_bug = [("    char ", CYAN_KEYWORD), ("grade = ", WHITE_VAR), ('"A";', ERROR_RED)]
-    l6 = [("    printf(\"%d %.1f %c\\n\", age, score, grade);", WHITE_VAR)]
-    l7 = [("    return ", CYAN_KEYWORD), ("0;", AMBER_NUMBER)]
-    l8 = [("}", WHITE_VAR)]
+    l4_bug = [("    char ", CYAN_KEYWORD), ("grade = ", WHITE_VAR), ('"A";', ERROR_RED), ("   // Buggy double quotes!", MUTED_TEXT)]
+    l4_fix = [("    char ", CYAN_KEYWORD), ("grade = ", WHITE_VAR), ("'A';", GREEN_STRING), ("   // Fixed single quotes!", MUTED_TEXT)]
+    l5 = [("    printf(\"Age: %d, Grade: %c\\n\", age, grade);", WHITE_VAR)]
+    l6 = [("    return ", CYAN_KEYWORD), ("0;", AMBER_NUMBER)]
+    l7 = [("}", WHITE_VAR)]
     
     if t < 3.0:
-        walk_x = int(100 + (t / 3.0) * 650)
-        draw_stickman_state(draw, state="walk", walk_x=walk_x, t=t)
-        draw.text((tm_x0 + 35, tm_y0 + 65), "$ gcc -v (ready for compilation)", fill=(71, 85, 105), font=FONT_TERM)
+        walk_x = int(100 + (t / 3.0) * 620)
+        draw_desk_chair_and_laptop(draw, dx=560, dy=1460, stick_pose="none", t=t)
+        draw_stickman_walk(draw, walk_x=walk_x, t=t)
+        draw.text((tm_x0 + 35, tm_y0 + 65), "$ gcc ready for compilation...", fill=(71, 85, 105), font=FONT_TERM)
 
-    elif t < 16.0:
+    elif t < 14.0:
+        # PROGRESSIVE TYPING OF BUGGY C PROGRAM FIRST
         t_rel = t - 3.0
-        draw.text((ed_x0 + 35, ed_y0 + 55), "1", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 55, l1)
-        draw.text((ed_x0 + 35, ed_y0 + 95), "2", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 95, l2)
-        draw.text((ed_x0 + 35, ed_y0 + 135), "3", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 135, l3)
-        draw.text((ed_x0 + 35, ed_y0 + 175), "4", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 175, l4)
-        draw.text((ed_x0 + 35, ed_y0 + 215), "5", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 215, l5_valid)
-        draw.text((ed_x0 + 35, ed_y0 + 255), "6", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 255, l6)
-        draw.text((ed_x0 + 35, ed_y0 + 295), "7", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 295, l7)
-        draw.text((ed_x0 + 35, ed_y0 + 335), "8", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 335, l8)
+        draw_desk_chair_and_laptop(draw, dx=560, dy=1460, stick_pose="sit_typing", t=t)
         
-        # Hit Enter at 10.0s (13.0s overall) -> green highlight on printf line
-        if t_rel >= 10.0:
-            draw.rounded_rectangle([ed_x0 + 20, ed_y0 + 250, ed_x1 - 20, ed_y0 + 290], radius=6, fill=(16, 185, 129, 30), outline=SUCCESS_GREEN, width=2)
-            draw.text((tm_x0 + 35, tm_y0 + 65), "$ gcc types.c -o types && ./types", fill=MUTED_TEXT, font=FONT_TERM)
-            draw.text((tm_x0 + 35, tm_y0 + 110), "25 9.5 A", fill=WHITE_VAR, font=FONT_TERM_BOLD)
-            draw.text((tm_x0 + 35, tm_y0 + 155), "[Process exited with return code 0]", fill=MUTED_TEXT, font=FONT_TERM)
-        else:
-            draw.text((tm_x0 + 35, tm_y0 + 65), "$ waiting for compilation...", fill=(71, 85, 105), font=FONT_TERM)
+        draw.text((ed_x0 + 35, ed_y0 + 60), "1", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 60, l1)
+        draw.text((ed_x0 + 35, ed_y0 + 105), "2", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 105, l2)
+        
+        # Line 3: int age = 25;
+        p3 = min(1.0, max(0.0, (t_rel - 0.2) / 2.5))
+        c3 = "    int age = 25;"[:int(p3 * 17)]
+        draw.text((ed_x0 + 35, ed_y0 + 150), "3", fill=MUTED_TEXT, font=FONT_CODE)
+        x3 = render_code_tokens(draw, ed_x0 + 90, ed_y0 + 150, l3 if p3 >= 1.0 else [(c3, WHITE_VAR)])
+        if p3 < 1.0:
+            draw.text((x3 + 4, ed_y0 + 150), cursor_char, fill=CYAN_KEYWORD, font=FONT_CODE)
             
-        pose = "sit_typing" if t_rel < 9.8 else ("sit_enter" if t_rel < 10.4 else "sit_idle")
-        draw_stickman_state(draw, state=pose, t=t)
-
-    elif t < 26.0:
-        # Bug Demo: char grade = "A"; (Double Quotes Error!)
-        t_rel = t - 16.0
-        draw.text((ed_x0 + 35, ed_y0 + 55), "1", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 55, l1)
-        draw.text((ed_x0 + 35, ed_y0 + 95), "2", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 95, l2)
-        draw.text((ed_x0 + 35, ed_y0 + 135), "3", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 135, l3)
-        draw.text((ed_x0 + 35, ed_y0 + 175), "4", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 175, l4)
-        
-        # Buggy Line 5
-        draw.text((ed_x0 + 35, ed_y0 + 215), "5", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 215, l5_bug)
-        
-        draw.text((ed_x0 + 35, ed_y0 + 255), "6", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 255, l6)
-        draw.text((ed_x0 + 35, ed_y0 + 295), "7", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 295, l7)
-        draw.text((ed_x0 + 35, ed_y0 + 335), "8", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 335, l8)
-        
-        # Hit Enter at 3.0s (19.0s overall) -> RED LINE HIGHLIGHT (Zero overlays covering the code!)
-        if t_rel >= 3.0:
-            draw.rounded_rectangle([ed_x0 + 20, ed_y0 + 210, ed_x1 - 20, ed_y0 + 250], radius=6, fill=(239, 68, 68, 35), outline=ERROR_RED, width=3)
-            draw.text((tm_x0 + 35, tm_y0 + 55), "$ gcc types.c -o types", fill=MUTED_TEXT, font=FONT_TERM)
-            draw.text((tm_x0 + 35, tm_y0 + 95), "types.c: In function 'main':", fill=WHITE_VAR, font=FONT_TERM)
-            draw.text((tm_x0 + 35, tm_y0 + 135), "types.c:5:18: error: incompatible types", fill=ERROR_RED, font=FONT_TERM_BOLD)
-            draw.text((tm_x0 + 35, tm_y0 + 175), "char grade = \"A\";", fill=WHITE_VAR, font=FONT_TERM)
-            draw.text((tm_x0 + 35, tm_y0 + 215), "             ^~~ In C, 'char' uses single quotes 'A'!", fill=AMBER_NUMBER, font=FONT_TERM)
-            draw.text((tm_x0 + 35, tm_y0 + 265), ">> Double quotes \"...\" are for strings (char*)!", fill=MUTED_TEXT, font=FONT_TERM)
-        else:
-            draw.text((tm_x0 + 35, tm_y0 + 65), "$ compiling...", fill=(71, 85, 105), font=FONT_TERM)
+        # Line 4: char grade = "A";  (BUGGY CODE TYPED FIRST!)
+        if t_rel >= 2.8:
+            p4 = min(1.0, max(0.0, (t_rel - 2.8) / 3.2))
+            c4 = '    char grade = "A";'[:int(p4 * 21)]
+            draw.text((ed_x0 + 35, ed_y0 + 195), "4", fill=MUTED_TEXT, font=FONT_CODE)
+            x4 = render_code_tokens(draw, ed_x0 + 90, ed_y0 + 195, l4_bug if p4 >= 1.0 else [(c4, WHITE_VAR)])
+            if p4 < 1.0:
+                draw.text((x4 + 4, ed_y0 + 195), cursor_char, fill=CYAN_KEYWORD, font=FONT_CODE)
+                
+        # Line 5: printf
+        if t_rel >= 6.2:
+            p5 = min(1.0, max(0.0, (t_rel - 6.2) / 3.0))
+            c5 = '    printf("%d %c\\n", age, grade);'[:int(p5 * 34)]
+            draw.text((ed_x0 + 35, ed_y0 + 240), "5", fill=MUTED_TEXT, font=FONT_CODE)
+            x5 = render_code_tokens(draw, ed_x0 + 90, ed_y0 + 240, l5 if p5 >= 1.0 else [(c5, WHITE_VAR)])
+            if p5 < 1.0:
+                draw.text((x5 + 4, ed_y0 + 240), cursor_char, fill=CYAN_KEYWORD, font=FONT_CODE)
+                
+        if t_rel >= 9.5:
+            draw.text((ed_x0 + 35, ed_y0 + 285), "6", fill=MUTED_TEXT, font=FONT_CODE)
+            render_code_tokens(draw, ed_x0 + 90, ed_y0 + 285, l6)
+            draw.text((ed_x0 + 35, ed_y0 + 330), "7", fill=MUTED_TEXT, font=FONT_CODE)
+            render_code_tokens(draw, ed_x0 + 90, ed_y0 + 330, l7)
             
-        pose = "sit_typing" if t_rel < 2.8 else ("sit_enter" if t_rel < 3.4 else "confused")
-        draw_stickman_state(draw, state=pose, t=t)
+        draw.text((tm_x0 + 35, tm_y0 + 65), "$ typing C program...", fill=(71, 85, 105), font=FONT_TERM)
 
-    elif t < 35.0:
-        # Fix: changing to 'A'
-        t_rel = t - 26.0
-        draw.text((ed_x0 + 35, ed_y0 + 55), "1", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 55, l1)
-        draw.text((ed_x0 + 35, ed_y0 + 95), "2", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 95, l2)
-        draw.text((ed_x0 + 35, ed_y0 + 135), "3", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 135, l3)
-        draw.text((ed_x0 + 35, ed_y0 + 175), "4", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 175, l4)
+    elif t < 23.0:
+        # EXECUTION -> GCC COMPILER CRASH! (Red highlight under line 4, zero covering blocks!)
+        t_rel = t - 14.0
+        pose = "sit_enter" if t_rel < 0.6 else "confused"
+        draw_desk_chair_and_laptop(draw, dx=560, dy=1460, stick_pose=pose, t=t)
         
-        # Fixed Line 5
-        draw.text((ed_x0 + 35, ed_y0 + 215), "5", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 215, l5_valid)
+        # Red highlight bar drawn FIRST under line 4!
+        draw.rounded_rectangle([ed_x0 + 20, ed_y0 + 185, ed_x1 - 20, ed_y0 + 235], radius=6, fill=(45, 18, 22), outline=ERROR_RED, width=2)
         
-        draw.text((ed_x0 + 35, ed_y0 + 255), "6", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 255, l6)
-        draw.text((ed_x0 + 35, ed_y0 + 295), "7", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 295, l7)
-        draw.text((ed_x0 + 35, ed_y0 + 335), "8", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 335, l8)
+        # Code text drawn on top
+        draw.text((ed_x0 + 35, ed_y0 + 60), "1", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 60, l1)
+        draw.text((ed_x0 + 35, ed_y0 + 105), "2", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 105, l2)
+        draw.text((ed_x0 + 35, ed_y0 + 150), "3", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 150, l3)
+        draw.text((ed_x0 + 35, ed_y0 + 195), "4", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 195, l4_bug)
+        draw.text((ed_x0 + 35, ed_y0 + 240), "5", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 240, l5)
+        draw.text((ed_x0 + 35, ed_y0 + 285), "6", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 285, l6)
+        draw.text((ed_x0 + 35, ed_y0 + 330), "7", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 330, l7)
         
+        # Terminal Error
+        draw.text((tm_x0 + 35, tm_y0 + 55), "$ gcc types.c -o types", fill=MUTED_TEXT, font=FONT_TERM)
+        draw.text((tm_x0 + 35, tm_y0 + 95), "types.c: In function 'main':", fill=WHITE_VAR, font=FONT_TERM)
+        draw.text((tm_x0 + 35, tm_y0 + 135), "types.c:4:18: error: incompatible types", fill=ERROR_RED, font=FONT_TERM_BOLD)
+        draw.text((tm_x0 + 35, tm_y0 + 175), "char grade = \"A\";", fill=WHITE_VAR, font=FONT_TERM)
+        draw.text((tm_x0 + 35, tm_y0 + 215), "             ^~~ In C, 'char' requires single quotes 'A'!", fill=AMBER_NUMBER, font=FONT_TERM)
+        draw.text((tm_x0 + 35, tm_y0 + 265), ">> Double quotes \"A\" create a string pointer (char*)!", fill=MUTED_TEXT, font=FONT_TERM)
+
+    elif t < 34.0:
+        # THE FIX: types 'A' -> SUCCESS!
+        t_rel = t - 23.0
         if t_rel < 2.0:
-            draw.text((720, 1310), "💡 IDEA!", fill=(250, 204, 21), font=FONT_HEADER)
+            draw.text((700, 1310), "💡 IDEA!", fill=(250, 204, 21), font=FONT_HEADER)
             
-        # Hit Enter at 2.5s (28.5s overall) -> GREEN HIGHLIGHT
-        if t_rel >= 2.5:
-            draw.rounded_rectangle([ed_x0 + 20, ed_y0 + 210, ed_x1 - 20, ed_y0 + 250], radius=6, fill=(16, 185, 129, 30), outline=SUCCESS_GREEN, width=2)
-            draw.text((tm_x0 + 35, tm_y0 + 65), "$ gcc types.c -o types && ./types", fill=MUTED_TEXT, font=FONT_TERM)
-            draw.text((tm_x0 + 35, tm_y0 + 110), "25 9.5 A", fill=SUCCESS_GREEN, font=FONT_TERM_BOLD)
-            draw.text((tm_x0 + 35, tm_y0 + 155), "[Process exited with return code 0]", fill=MUTED_TEXT, font=FONT_TERM)
-            draw.text((tm_x0 + 35, tm_y0 + 205), ">> Single quotes 'A' fixed the char syntax!", fill=GREEN_STRING, font=FONT_TERM)
+        pose = "sit_typing" if t_rel < 6.0 else ("sit_enter" if t_rel < 6.6 else "celebrate")
+        draw_desk_chair_and_laptop(draw, dx=560, dy=1460, stick_pose=pose, t=t)
+        
+        if t_rel >= 6.0:
+            draw.rounded_rectangle([ed_x0 + 20, ed_y0 + 185, ed_x1 - 20, ed_y0 + 235], radius=6, fill=(16, 45, 28), outline=SUCCESS_GREEN, width=2)
+            
+        draw.text((ed_x0 + 35, ed_y0 + 60), "1", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 60, l1)
+        draw.text((ed_x0 + 35, ed_y0 + 105), "2", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 105, l2)
+        draw.text((ed_x0 + 35, ed_y0 + 150), "3", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 150, l3)
+        draw.text((ed_x0 + 35, ed_y0 + 195), "4", fill=MUTED_TEXT, font=FONT_CODE)
+        
+        # Progressive typing of 'A'
+        p_fix = min(1.0, max(0.0, (t_rel - 1.5) / 4.0))
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 195, l4_fix if p_fix >= 1.0 else l4_bug)
+        
+        draw.text((ed_x0 + 35, ed_y0 + 240), "5", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 240, l5)
+        draw.text((ed_x0 + 35, ed_y0 + 285), "6", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 285, l6)
+        draw.text((ed_x0 + 35, ed_y0 + 330), "7", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 330, l7)
+        
+        if t_rel >= 6.0:
+            draw.text((tm_x0 + 35, tm_y0 + 55), "$ gcc types.c -o types && ./types", fill=MUTED_TEXT, font=FONT_TERM)
+            draw.text((tm_x0 + 35, tm_y0 + 100), "Age: 25, Grade: A", fill=SUCCESS_GREEN, font=FONT_TERM_BOLD)
+            draw.text((tm_x0 + 35, tm_y0 + 145), "[Process exited with return code 0]", fill=MUTED_TEXT, font=FONT_TERM)
+            draw.text((tm_x0 + 35, tm_y0 + 195), ">> Single quotes 'A' compiled successfully!", fill=GREEN_STRING, font=FONT_TERM)
         else:
-            draw.text((tm_x0 + 35, tm_y0 + 65), "$ updating code...", fill=(71, 85, 105), font=FONT_TERM)
-            
-        pose = "sit_typing" if t_rel < 2.3 else ("sit_enter" if t_rel < 2.9 else "celebrate")
-        draw_stickman_state(draw, state=pose, t=t)
+            draw.text((tm_x0 + 35, tm_y0 + 65), "$ updating char syntax to 'A'...", fill=(71, 85, 105), font=FONT_TERM)
 
     else:
-        # Act 4: Takeaway & Subscribe
-        draw.text((ed_x0 + 35, ed_y0 + 55), "1", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 55, l1)
-        draw.text((ed_x0 + 35, ed_y0 + 95), "2", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 95, l2)
-        draw.text((ed_x0 + 35, ed_y0 + 135), "3", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 135, l3)
-        draw.text((ed_x0 + 35, ed_y0 + 175), "4", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 175, l4)
-        draw.text((ed_x0 + 35, ed_y0 + 215), "5", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 215, l5_valid)
-        draw.text((ed_x0 + 35, ed_y0 + 255), "6", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 255, l6)
-        draw.text((ed_x0 + 35, ed_y0 + 295), "7", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 295, l7)
-        draw.text((ed_x0 + 35, ed_y0 + 335), "8", fill=MUTED_TEXT, font=FONT_CODE)
-        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 335, l8)
+        # Takeaway & Subscribe
+        draw_desk_chair_and_laptop(draw, dx=560, dy=1460, stick_pose="celebrate", t=t)
         
-        draw.text((tm_x0 + 35, tm_y0 + 65), "$ gcc types.c -o types && ./types", fill=MUTED_TEXT, font=FONT_TERM)
-        draw.text((tm_x0 + 35, tm_y0 + 110), "25 9.5 A", fill=SUCCESS_GREEN, font=FONT_TERM_BOLD)
-        draw.text((tm_x0 + 35, tm_y0 + 155), "[Process exited with return code 0]", fill=MUTED_TEXT, font=FONT_TERM)
+        draw.rounded_rectangle([ed_x0 + 20, ed_y0 + 185, ed_x1 - 20, ed_y0 + 235], radius=6, fill=(16, 45, 28), outline=SUCCESS_GREEN, width=2)
+        draw.text((ed_x0 + 35, ed_y0 + 60), "1", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 60, l1)
+        draw.text((ed_x0 + 35, ed_y0 + 105), "2", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 105, l2)
+        draw.text((ed_x0 + 35, ed_y0 + 150), "3", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 150, l3)
+        draw.text((ed_x0 + 35, ed_y0 + 195), "4", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 195, l4_fix)
+        draw.text((ed_x0 + 35, ed_y0 + 240), "5", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 240, l5)
+        draw.text((ed_x0 + 35, ed_y0 + 285), "6", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 285, l6)
+        draw.text((ed_x0 + 35, ed_y0 + 330), "7", fill=MUTED_TEXT, font=FONT_CODE)
+        render_code_tokens(draw, ed_x0 + 90, ed_y0 + 330, l7)
         
-        box_y0 = 1260
-        box_y1 = 1380
+        draw.text((tm_x0 + 35, tm_y0 + 55), "$ gcc types.c -o types && ./types", fill=MUTED_TEXT, font=FONT_TERM)
+        draw.text((tm_x0 + 35, tm_y0 + 100), "Age: 25, Grade: A", fill=SUCCESS_GREEN, font=FONT_TERM_BOLD)
+        draw.text((tm_x0 + 35, tm_y0 + 145), "[Process exited with return code 0]", fill=MUTED_TEXT, font=FONT_TERM)
+        
+        box_y0 = 1240
+        box_y1 = 1360
         draw.rounded_rectangle([ed_x0, box_y0, ed_x1, box_y1], radius=16, fill=(28, 22, 10), outline=(250, 204, 21), width=3)
         draw.text((ed_x0 + 30, box_y0 + 20), "⭐ KEY TAKEAWAY:", fill=(250, 204, 21), font=FONT_ALERT)
         draw.text((ed_x0 + 30, box_y0 + 65), "In C, char uses single quotes 'A', strings use \"A\"!", fill=WHITE_VAR, font=FONT_CODE_BOLD)
-        
-        draw_stickman_state(draw, state="celebrate", t=t)
         
         pulse = 3 * math.sin(t * 6.0)
         draw_centered_badge(
@@ -418,9 +414,9 @@ def render_frame(frame_idx: int) -> Image.Image:
 
 def main():
     print("==================================================================")
-    print("🎬 RENDERING C LANGUAGE EPISODE 2: CORE TYPES (%d, %f, %c)")
+    print("🎬 RENDERING C LANGUAGE EPISODE 2: CHAR VS STRING ('A' vs \"A\")")
     print(f"Total Duration: {TOTAL_SECONDS}s | FPS: {FPS} | Total Frames: {TOTAL_FRAMES}")
-    print("Stickman Walk-In -> Desk/Chair Sitting -> Pure SFX")
+    print("Stickman Walk-In -> Proper Laptop -> Progressive Typing -> Rich SFX")
     print("==================================================================")
     
     for i in range(TOTAL_FRAMES):
@@ -451,16 +447,16 @@ def main():
         "[2:a]adelay=300|300,volume=0.45[walk1];"
         "[2:a]adelay=1500|1500,volume=0.45[walk2];"
         "[3:a]adelay=3000|3000,volume=0.4[chair_sit];"
-        "[4:a]adelay=4500|4500,volume=0.35[k1];"
-        "[4:a]adelay=9000|9000,volume=0.35[k2];"
-        "[4:a]adelay=26500|26500,volume=0.35[k3];"
-        "[5:a]adelay=13000|13000,volume=0.55[p1];"
-        "[5:a]adelay=19000|19000,volume=0.55[p2];"
-        "[5:a]adelay=28500|28500,volume=0.55[p3];"
-        "[6:a]adelay=19200|19200,volume=0.65[b_err];"
-        "[7:a]adelay=13200|13200,volume=0.55[d1];"
-        "[7:a]adelay=28700|28700,volume=0.65[d2];"
-        "[amb][walk1][walk2][chair_sit][k1][k2][k3][p1][p2][p3][b_err][d1][d2]amix=inputs=13:duration=longest,volume=2.2,alimiter=limit=-1.5dB[aout]"
+        "[4:a]adelay=3300|3300,volume=0.35[k1];"
+        "[4:a]adelay=6500|6500,volume=0.35[k2];"
+        "[4:a]adelay=9800|9800,volume=0.35[k3];"
+        "[4:a]adelay=24500|24500,volume=0.35[k4];"
+        "[4:a]adelay=27000|27000,volume=0.35[k5];"
+        "[3:a]adelay=14000|14000,volume=0.55[p1];"
+        "[3:a]adelay=29000|29000,volume=0.55[p2];"
+        "[5:a]adelay=14200|14200,volume=0.65[b_err];"
+        "[6:a]adelay=29200|29200,volume=0.65[d_fix];"
+        "[amb][walk1][walk2][chair_sit][k1][k2][k3][k4][k5][p1][p2][b_err][d_fix]amix=inputs=13:duration=longest,volume=2.2,alimiter=limit=-1.5dB[aout]"
     )
     
     cmd = [
@@ -471,7 +467,6 @@ def main():
         "-i", str(sfx_footsteps),
         "-i", str(sfx_pop),
         "-i", str(sfx_keyboard),
-        "-i", str(sfx_pop),
         "-i", str(sfx_buzzer),
         "-i", str(sfx_ding),
         "-filter_complex", filter_complex,
@@ -498,4 +493,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
