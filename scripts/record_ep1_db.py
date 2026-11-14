@@ -39,3 +39,4 @@ db.publishing_jobs.update_one(
 
 print('MongoDB records updated successfully for Episode 1!')
 print('Video link:', yt_url)
+
