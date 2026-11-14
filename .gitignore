@@ -46,6 +46,7 @@ media_storage/captions/
 media_storage/rendered/
 media_storage/thumbnails/
 media_storage/*.log
+media_storage/*.json
 
 # System & IDE
 .DS_Store

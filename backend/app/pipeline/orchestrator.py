@@ -496,20 +496,21 @@ class PipelineOrchestrator:
 
         # 2. Check rendered video and thumbnail
         await self._transition_state(job_id, JobState.RENDERING)
-        rendered_video_path = os.path.join(settings.media_storage_dir, "rendered", f"alan_becker_python_ep{ep_num}_ultimate.mp4")
-        thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", f"alan_becker_ultimate_ep{ep_num}.jpg")
-
+        rendered_video_path = os.path.join(settings.media_storage_dir, "rendered", f"educational_python_ep{ep_num}.mp4")
         if not os.path.exists(rendered_video_path):
-            default_ep1 = os.path.join(settings.media_storage_dir, "rendered", "alan_becker_python_ep1_ultimate.mp4")
-            if os.path.exists(default_ep1):
-                rendered_video_path = default_ep1
+            alt_path = os.path.join(settings.media_storage_dir, "rendered", f"alan_becker_python_ep{ep_num}_ultimate.mp4")
+            if os.path.exists(alt_path):
+                rendered_video_path = alt_path
             else:
-                raise AutopilotError(f"Rendered video for episode {ep_num} not found at: {rendered_video_path}")
+                from backend.app.curriculum.educational_engine import render_educational_episode
+                logger.info(f"[Orchestrator] Episode {ep_num} not pre-rendered. Rendering on demand via educational studio...")
+                rendered_video_path = render_educational_episode(ep_info)
 
+        thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", f"educational_ep{ep_num}.jpg")
         if not os.path.exists(thumbnail_path):
-            default_thumb = os.path.join(settings.media_storage_dir, "thumbnails", "alan_becker_ultimate_ep1.jpg")
-            if os.path.exists(default_thumb):
-                thumbnail_path = default_thumb
+            alt_thumb = os.path.join(settings.media_storage_dir, "thumbnails", f"alan_becker_ultimate_ep{ep_num}.jpg")
+            if os.path.exists(alt_thumb):
+                thumbnail_path = alt_thumb
 
         await self._transition_state(job_id, JobState.RENDERED)
 
@@ -531,22 +532,29 @@ class PipelineOrchestrator:
         file_hash = compute_file_hash(rendered_video_path)
         next_teaser = ep_info.get("next_teaser", f"Episode {ep_num + 1} coming soon!")
 
+        stage1 = ep_info.get("stage1_hud", ("STAGE 1", "Visual demonstration"))
+        stage2 = ep_info.get("stage2_hud", ("STAGE 2", "Code execution"))
+        stage3 = ep_info.get("stage3_hud", ("STAGE 3", "Final takeaway"))
+        s1_str = f"⚡ {stage1[0]}: {stage1[1]}" if isinstance(stage1, (list, tuple)) else f"⚡ {stage1}"
+        s2_str = f"⚡ {stage2[0]}: {stage2[1]}" if isinstance(stage2, (list, tuple)) else f"⚡ {stage2}"
+        s3_str = f"⚡ {stage3[0]}: {stage3[1]}" if isinstance(stage3, (list, tuple)) else f"⚡ {stage3}"
+
         description_text = (
             f"Episode {ep_num} of our 10,000-Episode Python Visual Series! 🚀\n\n"
             f"{title_raw}\n\n"
-            f"Watch the stickman interact with Python memory and code in real time!\n\n"
-            f"⚡ STAGE 1: Creating variable x = 5 (reference stored in memory!)\n"
-            f"⚡ STAGE 2: Reassignment x = x + 3 (watch them fuse into 8!)\n"
-            f"⚡ STAGE 3: The Secret (y = x): y does NOT copy 8 — both point to the exact same object!\n\n"
+            f"Watch the yellow stickman interact with Python memory and code in real time!\n\n"
+            f"{s1_str}\n"
+            f"{s2_str}\n"
+            f"{s3_str}\n\n"
             f"🔥 Up Next: {next_teaser}\n\n"
             f"🔔 Follow the playlist & subscribe to master every Python concept from zero to FAANG level!\n\n"
-            f"#Python #PythonShorts #AlanBeckerStyle #CodingAnimation #Programming #LearnPython #Shorts #CodeAnimation #Tech"
+            f"#Python #PythonShorts #CodingAnimation #Programming #LearnPython #Shorts #CodeAnimation #Tech"
         )
         tags = [
-            "Python", "Python Shorts", "Alan Becker Style", "Coding Animation",
-            "Animation vs Coding", "Learn Python", "Python Tutorial", "Programming",
-            "Computer Science", "Python Tricks", "Code Animation", "Python For Beginners",
-            "Python Variables", "Software Engineering", "Python Memory", "Coding", "Tech"
+            "Python", "Python Shorts", "Coding Animation", "Learn Python",
+            "Python Tutorial", "Programming", "Computer Science", "Python Tricks",
+            "Code Animation", "Python For Beginners", "Data Types", "Variables",
+            "Software Engineering", "Python Memory", "Coding", "Tech"
         ]
 
         # 4. Upload to YouTube
