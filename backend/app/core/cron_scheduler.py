@@ -178,7 +178,7 @@ async def execute_slot_pipeline(
     tz = zoneinfo.ZoneInfo(settings.timezone)
     date_str = datetime.now(tz).strftime("%Y-%m-%d")
 
-    workspace_niche = "Python Quiz #Shorts"
+    workspace_niche = "Python Programming"
     if workspace_id:
         can_gen, reason = can_workspace_generate_sync(workspace_id)
         if not can_gen:
@@ -187,32 +187,22 @@ async def execute_slot_pipeline(
 
         ws_obj = db.workspaces.find_one({"_id": ObjectId(workspace_id)}) if ObjectId.is_valid(workspace_id) else db.workspaces.find_one({"_id": workspace_id})
         if ws_obj:
-            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Tech & Innovation"
+            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Programming"
         idemp_prefix = f"autopilot_{date_str}_{workspace_id}_slot{slot_index}"
     else:
         ws_obj = db.workspaces.find_one({"is_legacy_default": True}) or db.workspaces.find_one()
         if ws_obj:
-            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Quiz #Shorts"
+            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Programming"
         idemp_prefix = f"autopilot_{date_str}_slot{slot_index}"
 
     is_owner = (not workspace_id) or (ws_obj and ws_obj.get("is_legacy_default") is True)
     if is_owner:
-        workspace_niche = "Python Quiz #Shorts"
-        pref_format = "quiz_card"
+        workspace_niche = "Python Programming"
+        pref_format = "alan_becker_animation"
         custom_prompt = None
     else:
         custom_prompt = ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt") if ws_obj else None
-        saved_pref = (
-            ws_obj.get("preferred_format")
-            or ws_obj.get("settings", {}).get("preferred_format")
-        ) if ws_obj else None
-
-        if saved_pref and saved_pref != "auto":
-            pref_format = saved_pref
-        else:
-            from backend.app.core.language_detector import detect_content_archetype
-            eff_content = custom_prompt or workspace_niche
-            arch_info = detect_content_archetype(eff_content)
+        pref_format = "alan_becker_animation"
             if arch_info.archetype == "documentary_cinematic":
                 pref_format = "documentary"
             elif arch_info.archetype == "quote_card":
