@@ -529,7 +529,8 @@ class PipelineOrchestrator:
         if not os.path.exists(rendered_video_path):
             from backend.app.curriculum.educational_engine import render_educational_episode
             logger.info(f"[Orchestrator] Episode {ep_num} not pre-rendered. Rendering on demand via educational studio...")
-            rendered_video_path = render_educational_episode(ep_info)
+            ep_info["is_c"] = is_c
+            rendered_video_path = render_educational_episode(ep_info, is_c=is_c)
 
         if not os.path.exists(thumbnail_path):
             thumbnail_path = os.path.join(settings.media_storage_dir, "thumbnails", "default_thumb.jpg")
