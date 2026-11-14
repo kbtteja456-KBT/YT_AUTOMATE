@@ -155,27 +155,36 @@ STATIC_CURRICULUM: List[Dict[str, Any]] = [
         "stage3_hud": ("STAGE 3: FUNCTION DESTROYED", "The room vanishes! Global num remains untouched at 100!"),
         "output_str": "100",
         "next_teaser": "Episode 15: Recursion & The Call Stack Tower!"
-    }
-],
+    },
     {
-        "episode": 11,
+        "episode": 15,
+        "title": "Recursion & The Call Stack Tower!",
+        "code_lines": ["def count_down(n):", "    if n <= 0: return 'Blastoff!'", "    return count_down(n - 1)", "print(count_down(3))"],
+        "stage1_hud": ("STAGE 1: THE CALL STACK", "Each recursive call stacks a new frame on the memory tower!"),
+        "stage2_hud": ("STAGE 2: BASE CASE REACHED", "n = 0 triggers the base case: stopping the stack from overflowing!"),
+        "stage3_hud": ("STAGE 3: STACK UNWINDING", "Stack pops frames one by one, returning 'Blastoff!'"),
+        "output_str": "Blastoff!",
+        "next_teaser": "Episode 16: The Python Secret (Small Integer Caching)!"
+    },
+    {
+        "episode": 16,
         "title": "Why is (256 is 256) True, but (257 is 257) False?!",
         "code_lines": ["a = 256; b = 256", "print(a is b)  # True", "c = 257; d = 257", "print(c is d)  # False!"],
         "stage1_hud": ("STAGE 1: THE PRE-ALLOCATED VAULT", "Python pre-allocates small integers from -5 to 256!"),
         "stage2_hud": ("STAGE 2: SAME IDENTITY (a is b)", "Both a and b point to the exact same vault address!"),
         "stage3_hud": ("STAGE 3: OUTSIDE THE VAULT (257)", "257 is outside the cache! Python creates 2 separate memory objects!"),
         "output_str": "True\nFalse",
-        "next_teaser": "Episode 12: The Mutable Default Argument Trap!"
+        "next_teaser": "Episode 17: The Mutable Default Argument Trap!"
     },
     {
-        "episode": 12,
+        "episode": 17,
         "title": "The Dangerous Mutable Default Argument Trap!",
         "code_lines": ["def add(val, items=[]):", "    items.append(val)", "    return items", "print(add(1)); print(add(2))"],
         "stage1_hud": ("STAGE 1: DEFINITION TIME", "Python creates the default [] list ONCE when the function compiles!"),
         "stage2_hud": ("STAGE 2: CALL 1 (add(1))", "add(1) appends 1 into the shared list: returns [1]!"),
         "stage3_hud": ("STAGE 3: CALL 2 TRAP!", "Call 2 reuses the same list: returns [1, 2] instead of [2]!"),
         "output_str": "[1]\n[1, 2]",
-        "next_teaser": "Episode 13: List Comprehensions (Speed vs For-Loop)!"
+        "next_teaser": "Episode 18: List Comprehensions (Speed vs For-Loop)!"
     }
 ]
 
