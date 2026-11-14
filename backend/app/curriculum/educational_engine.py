@@ -265,10 +265,22 @@ def draw_callout_banner(draw: ImageDraw.ImageDraw, step_text: str, explanation: 
 # -------------------------------------------------------------
 # DYNAMIC EDUCATIONAL EPISODE RENDERER
 # -------------------------------------------------------------
-async def synthesize_narration(text: str, out_path: Path):
+async def synthesize_narration(text: str, out_path: Path, language: str = "en", voice_id: Optional[str] = None):
+    # Support Google Voice or Edge-TTS depending on configuration
+    if language == "te" or voice_id == "google_telugu":
+        try:
+            from gtts import gTTS
+            tts = gTTS(text=text, lang="te", slow=False)
+            tts.save(str(out_path))
+            return
+        except Exception as ge:
+            logger.warning(f"gTTS Telugu failed ({ge}), falling back to Edge Telugu...")
+
+    # Edge TTS (Supports English and Natural Telugu Mohan/Shruti)
+    chosen_voice = voice_id or ("te-IN-MohanNeural" if language == "te" else "en-US-AndrewMultilingualNeural")
     communicate = edge_tts.Communicate(
         text=text,
-        voice="en-US-AndrewMultilingualNeural",
+        voice=chosen_voice,
         rate="+0%",
         pitch="+0Hz"
     )
@@ -286,19 +298,48 @@ def render_educational_episode(ep_data: Dict[str, Any]) -> str:
     code_lines = ep_data.get("code_lines", [])
     output_lines = ep_data.get("output_lines", [])
     next_teaser = ep_data.get("next_teaser", f"Episode {ep_num + 1}")
+    language = ep_data.get("language", "en")
+    voice_id = ep_data.get("voice_id", None)
 
-    ep_dir = TEMP_DIR / f"ep_{ep_num}"
+    # Automatically construct high-retention narration if not provided
+    if not narration_text:
+        s1 = ep_data.get("stage1_hud", ("", ""))
+        s2 = ep_data.get("stage2_hud", ("", ""))
+        s3 = ep_data.get("stage3_hud", ("", ""))
+        s1_desc = s1[1] if isinstance(s1, (list, tuple)) else str(s1)
+        s2_desc = s2[1] if isinstance(s2, (list, tuple)) else str(s2)
+        s3_desc = s3[1] if isinstance(s3, (list, tuple)) else str(s3)
+        if language == "te":
+            narration_text = (
+                f"Welcome to Episode {ep_num} of Python Master Series! Ee video lo manam {title} gurinchi deep ga nerchukundam. "
+                f"Modatiga, {s1_desc}. "
+                f"Next stage lo, {s2_desc}. "
+                f"Chivariga, {s3_desc}. "
+                f"Python lo ee concept chala powerful friends! "
+                f"Subscribe chesi follow avvandi {next_teaser}! Next video lo kaluddam!"
+            )
+        else:
+            narration_text = (
+                f"Welcome to Episode {ep_num} of our complete Python Visual Series! Today, let's understand {title}! "
+                f"First, {s1_desc} "
+                f"Next, {s2_desc} "
+                f"Finally, {s3_desc} "
+                f"Notice how Python executes everything cleanly in memory. "
+                f"Subscribe and follow for {next_teaser}! See you in the next episode!"
+            )
+
+    ep_dir = TEMP_DIR / f"ep_{ep_num}_{language}"
     ep_frames = ep_dir / "frames"
     ep_frames.mkdir(parents=True, exist_ok=True)
     narration_audio = ep_dir / "narration.mp3"
 
     print(f"\n==================================================================")
-    print(f"🎬 RENDERING EDUCATIONAL EPISODE {ep_num}: {title.upper()}")
+    print(f"🎬 RENDERING EDUCATIONAL EPISODE {ep_num}: {title.upper()} ({language.upper()})")
     print(f"==================================================================")
 
     # 1. Synthesize Narration Audio
     if not narration_audio.exists():
-        asyncio.run(synthesize_narration(narration_text, narration_audio))
+        asyncio.run(synthesize_narration(narration_text, narration_audio, language=language, voice_id=voice_id))
 
     # 2. Measure Duration
     res = subprocess.run([FFMPEG, "-i", str(narration_audio)], stderr=subprocess.PIPE, text=True)
@@ -377,7 +418,8 @@ def render_educational_episode(ep_data: Dict[str, Any]) -> str:
         img.save(frame_path, format="PNG")
 
     # 4. Composite Video with FFmpeg
-    final_video = RENDERED_DIR / f"educational_python_ep{ep_num}.mp4"
+    suffix = f"_{language}" if language != "en" else ""
+    final_video = RENDERED_DIR / f"educational_python_ep{ep_num}{suffix}.mp4"
     cmd = [
         FFMPEG, "-y",
         "-framerate", str(FPS),

@@ -340,12 +340,22 @@ class CurriculumManager:
         """Advance episode counter in MongoDB after successful publishing."""
         db = SyncMongoDB.get_db()
         next_ep = published_ep_num + 1
+        now_dt = datetime.now(timezone.utc)
         db.system_config.update_one(
             {"key": "python_visual_curriculum"},
             {"$set": {
                 "current_episode": next_ep,
                 "last_published_episode": published_ep_num,
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": now_dt
+            }},
+            upsert=True
+        )
+        db.curriculum_tracker.update_one(
+            {"niche": "Python Programming"},
+            {"$set": {
+                "current_episode": next_ep,
+                "last_published_episode": published_ep_num,
+                "updated_at": now_dt
             }},
             upsert=True
         )

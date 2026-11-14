@@ -239,7 +239,7 @@ async def run_real_pipeline(
     else:
         ws_obj = db.workspaces.find_one({"is_legacy_default": True}) or db.workspaces.find_one()
         if ws_obj:
-            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Quiz #Shorts"
+            workspace_niche = ws_obj.get("niche") or ws_obj.get("settings", {}).get("niche") or "Python Programming"
         idempotency_key = compute_content_hash(f"autopilot_{date_str}_slot{slot_index}")
 
     custom_prompt = (ws_obj.get("custom_content_prompt") or ws_obj.get("settings", {}).get("custom_content_prompt")) if ws_obj else None
@@ -248,8 +248,8 @@ async def run_real_pipeline(
         or ws_obj.get("preferred_format")
         or ws_obj.get("settings", {}).get("content_template")
         or ws_obj.get("settings", {}).get("preferred_format")
-        or "auto"
-    ) if ws_obj else "auto"
+        or "alan_becker_animation"
+    ) if ws_obj else "alan_becker_animation"
 
     # 1. Check if already published today
     if not force and is_slot_published_today(slot_index, date_str, workspace_id=workspace_id):

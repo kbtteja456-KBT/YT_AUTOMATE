@@ -696,7 +696,15 @@ class PipelineOrchestrator:
         """Execute all stages sequentially with automatic resumption and duplicate retry protection."""
         logger.info(f"[Orchestrator] Beginning execution for Job {job_id} (slot: {slot_index}, prompt: '{custom_prompt}', duration: {target_duration_sec}s, dry_run: {dry_run})...")
 
-        if content_format == "alan_becker_animation":
+        # HARD-LOCK: Educational Yellow Stickman Visual Series
+        # Always route Python Programming and animation templates directly to the educational studio pipeline
+        is_stickman_series = (
+            content_format in ("alan_becker_animation", "educational_animation", "educational_yellow_stickman", "educational_tenglish_animation")
+            or "python" in (niche or "").lower()
+            or content_format == "auto"
+        )
+        if is_stickman_series:
+            logger.info(f"[Orchestrator] Hard-locking execution to Educational Yellow Stickman Studio (niche='{niche}', format='{content_format}').")
             return await self._execute_alan_becker_pipeline(
                 job_id=job_id,
                 publish_immediately=publish_immediately,
