@@ -40,11 +40,17 @@ yarn-error.log*
 media_storage/temp/
 media_storage/assets/*
 !media_storage/assets/tech_bg.mp4
+!media_storage/assets/sfx/
+!media_storage/assets/sfx/*
 media_storage/audio/*
 !media_storage/audio/bg_music.mp3
 media_storage/captions/
-media_storage/rendered/
-media_storage/thumbnails/
+media_storage/rendered/*
+!media_storage/rendered/educational_python_ep2.mp4
+!media_storage/rendered/channel2_c_ep2.mp4
+media_storage/thumbnails/*
+!media_storage/thumbnails/educational_ep2.jpg
+!media_storage/thumbnails/channel2_c_ep2.jpg
 media_storage/*.log
 media_storage/*.json
 

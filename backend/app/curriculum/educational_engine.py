@@ -62,25 +62,48 @@ ERROR_RED = (239, 68, 68)
 SUCCESS_GREEN = (34, 197, 94)
 LAPTOP_SILVER = (190, 200, 215)
 
-# Fonts
-try:
-    FONT_CODE = ImageFont.truetype("C:/Windows/Fonts/consola.ttf", 34)
-    FONT_CODE_BOLD = ImageFont.truetype("C:/Windows/Fonts/consolab.ttf", 34)
-    FONT_HEADER = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 46)
-    FONT_SUBTITLE = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 24)
-    FONT_TERM = ImageFont.truetype("C:/Windows/Fonts/consola.ttf", 28)
-    FONT_TERM_BOLD = ImageFont.truetype("C:/Windows/Fonts/consolab.ttf", 30)
-    FONT_ALERT = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
-    FONT_COMIC = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 36)
-except Exception:
-    FONT_CODE = ImageFont.load_default()
-    FONT_CODE_BOLD = ImageFont.load_default()
-    FONT_HEADER = ImageFont.load_default()
-    FONT_SUBTITLE = ImageFont.load_default()
-    FONT_TERM = ImageFont.load_default()
-    FONT_TERM_BOLD = ImageFont.load_default()
-    FONT_ALERT = ImageFont.load_default()
-    FONT_COMIC = ImageFont.load_default()
+def load_cross_platform_font(font_names: List[str], size: int) -> ImageFont.ImageFont:
+    """Search Windows, Linux/Ubuntu, and macOS font directories for matching fonts."""
+    search_dirs = [
+        Path("C:/Windows/Fonts"),
+        Path("/usr/share/fonts/truetype"),
+        Path("/usr/share/fonts/truetype/liberation"),
+        Path("/usr/share/fonts/truetype/dejavu"),
+        Path("/usr/share/fonts"),
+        Path.home() / ".fonts",
+    ]
+    for name in font_names:
+        p = Path(name)
+        if p.exists():
+            try:
+                return ImageFont.truetype(str(p), size)
+            except Exception:
+                pass
+        for d in search_dirs:
+            if not d.exists():
+                continue
+            candidate = d / name
+            if candidate.exists():
+                try:
+                    return ImageFont.truetype(str(candidate), size)
+                except Exception:
+                    pass
+            matches = list(d.rglob(name))
+            if matches:
+                try:
+                    return ImageFont.truetype(str(matches[0]), size)
+                except Exception:
+                    pass
+    return ImageFont.load_default()
+
+FONT_CODE = load_cross_platform_font(["consola.ttf", "LiberationMono-Regular.ttf", "DejaVuSansMono.ttf"], 34)
+FONT_CODE_BOLD = load_cross_platform_font(["consolab.ttf", "LiberationMono-Bold.ttf", "DejaVuSansMono-Bold.ttf"], 34)
+FONT_HEADER = load_cross_platform_font(["arialbd.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf"], 46)
+FONT_SUBTITLE = load_cross_platform_font(["arialbd.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf"], 24)
+FONT_TERM = load_cross_platform_font(["consola.ttf", "LiberationMono-Regular.ttf", "DejaVuSansMono.ttf"], 28)
+FONT_TERM_BOLD = load_cross_platform_font(["consolab.ttf", "LiberationMono-Bold.ttf", "DejaVuSansMono-Bold.ttf"], 30)
+FONT_ALERT = load_cross_platform_font(["arialbd.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf"], 28)
+FONT_COMIC = load_cross_platform_font(["arialbd.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf"], 36)
 
 
 def tokenize_code(line: str, is_c: bool = False) -> List[Tuple[str, Tuple[int, int, int]]]:
@@ -510,10 +533,10 @@ def render_educational_episode(ep_data: Dict[str, Any], is_c: bool = False) -> s
     print(f"📸 Thumbnail saved: {final_thumb}")
 
     # 3. Audio Mix with SFX
-    sfx_click = SFX_DIR / "click_pop.wav"
-    sfx_typing = SFX_DIR / "typing_fast.wav"
-    sfx_error = SFX_DIR / "error_buzzer.wav"
-    sfx_success = SFX_DIR / "success_chime.wav"
+    sfx_pop = SFX_DIR / "pop.wav"
+    sfx_keyboard = SFX_DIR / "keyboard.wav"
+    sfx_buzzer = SFX_DIR / "buzzer.wav"
+    sfx_ding = SFX_DIR / "success_ding.wav"
     sfx_footsteps = SFX_DIR / "footsteps.wav"
     sfx_ambient = SFX_DIR / "ambient_coding_pad.wav"
 
@@ -542,10 +565,10 @@ def render_educational_episode(ep_data: Dict[str, Any], is_c: bool = False) -> s
         "-i", str(ep_frames_dir / "f_%05d.png"),
         "-i", str(sfx_ambient),
         "-i", str(sfx_footsteps),
-        "-i", str(sfx_click),
-        "-i", str(sfx_typing),
-        "-i", str(sfx_error),
-        "-i", str(sfx_success),
+        "-i", str(sfx_pop),
+        "-i", str(sfx_keyboard),
+        "-i", str(sfx_buzzer),
+        "-i", str(sfx_ding),
         "-filter_complex", filter_complex,
         "-map", "0:v",
         "-map", "[aout]",
